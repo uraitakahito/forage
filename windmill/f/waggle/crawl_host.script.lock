@@ -77,7 +77,7 @@
 
     "undici-types": ["undici-types@8.9.0", "", {}, "sha512-KTDyRTYX8sWmKXAikPHHSyc63CRPETMctyjKFupcC6OBLXT3xsN0e9aF7m+mIXutFWpUXuedtowG7iLOzp0kQg=="],
 
-    "windmill-client": ["windmill-client@1.806.0", "", {}, "sha512-197UuOCR/dRbuNHETahjyW6KAIkvdfBnsYteOy3SVXByuMLtww8zCkBPpGlwG4hP/SoIlNIWFfDDZbemqJ1z7Q=="],
+    "windmill-client": ["windmill-client@1.808.0", "", {}, "sha512-HOXgFTFmqDwmXp3t0Jxbx2DLxKsIhmxD1OYUG8F55yE+D6S/353hN1W1Rpi/NhDSi1OgPBhUJjuuvWfCMaWfmA=="],
 
     "wrap-ansi": ["wrap-ansi@7.0.0", "", { "dependencies": { "ansi-styles": "^4.0.0", "string-width": "^4.1.0", "strip-ansi": "^6.0.0" } }, "sha512-YVGIj2kamLSTxw6NsZjoBxfSwsn0ycdesmc4p+Q21c5zPuZ1pl+NfxVdxPtdHvmNVOQ6XSYG4AUtyt/Fi7D16Q=="],
 
