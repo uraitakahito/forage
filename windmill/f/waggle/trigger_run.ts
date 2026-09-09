@@ -22,7 +22,7 @@ type Terminal = "succeeded" | "failed";
 
 interface RunState {
   runId: string;
-  status: "running" | Terminal;
+  state: "running" | Terminal;
   startedAt: string;
   finishedAt: string | null;
   submitted: number | null;
@@ -65,6 +65,15 @@ export async function main(
   token: string,
   limit?: number,
   timeout_ms: number = DEFAULT_TIMEOUT_MS,
+  /**
+   * 問い合わせの間隔。**試験のためだけに引数へ出してある。**
+   *
+   * 既定の 15 秒のままだと、待機ループの試験が 1 本あたり 15 秒かかる ——
+   * sleep が最初の問い合わせより前に入るため。`crawl_host.ts` の `captureHost` に
+   * 対してやったのと同じ形で、fake timer を使わずに実タイマーの ms スケールで
+   * 書けるようにする。
+   */
+  poll_interval_ms: number = POLL_INTERVAL_MS,
 ): Promise<Result> {
   const headers = { authorization: `Bearer ${token}`, "content-type": "application/json" };
 
@@ -95,21 +104,38 @@ export async function main(
           " まだ走っているかもしれません —— GET /api/runs/:id で見てください",
       );
     }
-    await sleep(POLL_INTERVAL_MS);
+    await sleep(poll_interval_ms);
 
     const res = await fetch(`${waggle_url}/api/runs/${runId}`, { headers });
     if (!res.ok) throw await failure(res, `GET /api/runs/${runId}`);
     const run = (await res.json()) as RunState;
-    if (run.status === "running") continue;
+    if (run.state === "running") continue;
 
     const counts = {
       submitted: run.submitted ?? 0,
       accepted: run.accepted ?? 0,
       rejected: run.rejected ?? 0,
     };
-    if (run.status === "failed") {
+    if (run.state === "failed") {
       throw new Error(`${runId} は失敗しました: ${run.error ?? "(理由なし)"}`);
     }
+
+    // **知らない値を「成功」に落とさない。**
+    //
+    // ここが無いと、waggle 側の field 名が変わっただけで `run.status` が
+    // `undefined` になり、上の 2 つの比較を素通りして succeeded を返す ——
+    // 走行中でも失敗でも「成功」と報告することになる。日次の実行はここでしか
+    // 成否を決めていないので、静かに間違えると誰も気づかない。
+    //
+    // 線の形を守っているものは他に無い: waggle 側に response schema は無く、
+    // こちらは `as RunState` の素のキャスト。**この 1 つが唯一の砦。**
+    if (run.state !== "succeeded") {
+      throw new Error(
+        `${runId}: 知らない状態「${String(run.state)}」が返りました。` +
+          " waggle の /api/runs/:id が返す field 名が変わっていませんか",
+      );
+    }
+
     // succeeded は「最後まで走った」であって「全部取れた」ではない。
     // 投げたものが全部拒まれていても succeeded で終わる —— 内訳は counts が語る。
     console.log(`完了: ${JSON.stringify(counts)}`);

@@ -63,14 +63,35 @@ and the e2e red, and the e2e shows meadow receiving the forbidden page. That pai
 was checked once on purpose: if only one layer goes red, the other is watching
 something it thinks it is watching and is not.
 
+## The nightly loop refuses to guess
+
+`trigger_run.ts` is the only thing that decides whether the nightly run succeeded,
+and the e2e does not touch it (that drives the crawl path, not the run path). It
+used to have no coverage at all, because `POLL_INTERVAL_MS` was a 15-second
+constant and the sleep happens _before_ the first poll — one test, fifteen
+seconds.
+
+It now takes `poll_interval_ms` as an argument, the same 3-line change made to
+`crawl_host.ts`, so the loop runs on real timers at millisecond scale.
+
+The guard worth knowing about is this one:
+
+```ts
+if (run.state !== "succeeded") throw new Error(`知らない状態「…」`);
+```
+
+Without it, a run state the script does not recognise falls through **both**
+comparisons and returns `succeeded` with counts of zero. That is exactly what a
+renamed field looks like — and it happened: waggle's `runs.status` became
+`runs.state`, and the pre-rename script was pointed at the post-rename API to
+watch this fire. It threw, naming the likely cause, instead of reporting a
+green nightly run that never ran.
+
+Nothing else protects the shape of that response: waggle has no serializer
+schema, and this side does a bare `as RunState` cast.
+
 ## What is not covered
 
-`trigger_run.ts`'s polling loop. `POLL_INTERVAL_MS` is a 3-line change away from
-being injectable — the same change already made to `crawl_host.ts` — but as it
-stands every test of that loop costs 15 seconds, because the sleep happens before
-the first poll.
-
-That leaves the two lines deciding whether the nightly run succeeded
-(`if (run.status === "running") continue` and the `failed` throw) with **no
-coverage at all**, and nothing else exercises them: the e2e drives the crawl path,
-not the run path.
+The e2e runs one crawl. It does not start a _run_ (the `capture_targets` batch),
+so `POST /api/runs`'s own path through waggle is exercised only by unit tests on
+both sides.

@@ -23,6 +23,10 @@ schema:
       description: 投げる対象の上限。省くと enabled な行を全部
       default: null
       minimum: 1
+    poll_interval_ms:
+      type: number
+      description: ""
+      default: null
     timeout_ms:
       type: number
       description: 見届けを諦めるまで。既定は 2 時間

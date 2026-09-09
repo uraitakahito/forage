@@ -5,16 +5,22 @@ import { main } from "../windmill/f/waggle/trigger_run.js";
  * 日次の引き金。**import が 1 つも無く、接続先もトークンも引数で受ける** ——
  * 5 本の中で最も試験しやすい。
  *
- * ## ここで見ていないこと
+ * 待機ループも見ている。`poll_interval_ms` を引数に出したので、実タイマーの
+ * ms スケールで回せる (fake timer は使わない —— capture 系の sleep で一度
+ * 溶かしている)。
  *
- * 完了を待つループは見ていない。`POLL_INTERVAL_MS` が 15 秒の定数で、
- * **最初の 1 回目の問い合わせの前にも必ず待つ**ため、1 本書くたびに 15 秒かかる。
- * `crawl_host` のように引数へ出すこともできるが、そこは本体を変えることになるので
- * 今回は見送った (`captureHost` の切り出しだけに留める判断)。
- *
- * 結果として、ここが押さえるのは **起こし方と、失敗したときの言い分**。
- * 待つ側は e2e が通る経路で確かめる。
+ * **日次の実行が成功したかどうかを決めているのはこのループだけ**で、e2e が触るのは
+ * クロールの経路。だからここが唯一の覆い。
  */
+
+/** 1 つの応答。`responding` と待機ループの試験の両方が使う。 */
+const reply = (status: number, body: unknown): Response =>
+  ({
+    ok: status >= 200 && status < 300,
+    status,
+    json: () => Promise.resolve(body),
+    text: () => Promise.resolve(typeof body === "string" ? body : JSON.stringify(body)),
+  }) as Response;
 
 const responding = (status: number, body: unknown) => {
   const seen: { url: string; init: RequestInit }[] = [];
@@ -97,5 +103,90 @@ describe("失敗したときの言い分", () => {
     // 200 は「起こした」を意味しない。202 だけが受理。
     responding(200, { runId: "r1" });
     await expect(main("http://waggle:7070", "tok")).rejects.toThrow(/200/);
+  });
+});
+
+describe("完了を待つ", () => {
+  /** POST は 202、その後の GET は与えた並びを順に返す。最後のものが以後ずっと返る。 */
+  const polling = (runs: unknown[]) => {
+    let n = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => {
+        if (n === 0) {
+          n += 1;
+          return Promise.resolve(reply(202, { runId: "r1" }));
+        }
+        const body = runs[Math.min(n - 1, runs.length - 1)];
+        n += 1;
+        return Promise.resolve(reply(200, body));
+      }),
+    );
+  };
+
+  it("running の間は問い合わせ続ける", async () => {
+    // **これが無いと走行中を「終わった」と読む。** counts は 0 のまま succeeded で
+    // 返り、日次の実行は毎晩緑になる。
+    polling([{ state: "running" }, { state: "running" }, { state: "succeeded", submitted: 3 }]);
+    await expect(main("http://w", "tok", undefined, 60_000, 5)).resolves.toMatchObject({
+      outcome: "succeeded",
+      submitted: 3,
+    });
+  });
+
+  it("failed は投げる", async () => {
+    // 失敗を成功として返さない。
+    polling([{ state: "failed", error: "browserhive unreachable" }]);
+    await expect(main("http://w", "tok", undefined, 60_000, 5)).rejects.toThrow(
+      /browserhive unreachable/,
+    );
+  });
+
+  it("理由が無い失敗も投げる", async () => {
+    polling([{ state: "failed" }]);
+    await expect(main("http://w", "tok", undefined, 60_000, 5)).rejects.toThrow(/理由なし/);
+  });
+
+  it("知らない状態を succeeded に落とさない", async () => {
+    // **改名の砦。** waggle が field 名を変えると `run.status` が undefined になり、
+    // running でも failed でもないので、砦が無ければ succeeded で返ってしまう。
+    // waggle が古い `status` を返してきた場合。実測でも、改名前の script を
+    // 改名後の waggle に当てて、ここが発火することを確かめてある。
+    polling([{ status: "succeeded", submitted: 3 }]);
+    await expect(main("http://w", "tok", undefined, 60_000, 5)).rejects.toThrow(
+      /知らない状態「undefined」/,
+    );
+  });
+
+  it("件数が null なら 0 として返す", async () => {
+    polling([{ state: "succeeded", submitted: null, accepted: null, rejected: null }]);
+    await expect(main("http://w", "tok", undefined, 60_000, 5)).resolves.toEqual({
+      outcome: "succeeded",
+      runId: "r1",
+      submitted: 0,
+      accepted: 0,
+      rejected: 0,
+    });
+  });
+
+  it("問い合わせが失敗したら投げる", async () => {
+    // POST 側の失敗とは別の経路。こちらも本文を読む。
+    let n = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => {
+        n += 1;
+        return Promise.resolve(
+          n === 1 ? reply(202, { runId: "r1" }) : reply(500, { error: "boom" }),
+        );
+      }),
+    );
+    await expect(main("http://w", "tok", undefined, 60_000, 5)).rejects.toThrow(/boom/);
+  });
+
+  it("期限を過ぎたら諦める", async () => {
+    // 走ったまま残る —— waggle に中断の口が無いので、ここで殺す術は無い。
+    polling([{ state: "running" }]);
+    await expect(main("http://w", "tok", undefined, -1, 5)).rejects.toThrow(/終わりませんでした/);
   });
 });
