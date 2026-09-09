@@ -11,6 +11,9 @@ description: |
     - ホストを並列に回す        for-loop の parallelism —— CE で効く唯一の同時実行の枠
     - ホスト内は逐次 + 間隔     (crawl_host)
 
+  報告のあとに索引を 1 段だけ足してある。載せる中身を選ぶのは waggle で、ここが渡すのは
+  crawl_id だけ —— 判断を、単体試験の無い場所に置かないため。
+
   Windmill の per-key concurrency limit は使わない。実装が jobs_ee.rs にあり、
   Community Edition では常に許可を返すスタブなので、**設定しても無言で素通しになる**。
 value:
@@ -81,6 +84,15 @@ value:
               results.hosts.flat().concat(
                 results.plan.skipped.map((s) => ({ url: s.url, status: "skipped", skipReason: s.reason }))
               )
+    - id: index
+      summary: 索引に載せる
+      value:
+        type: script
+        path: f/waggle/index_level
+        input_transforms:
+          crawl_id:
+            type: javascript
+            expr: flow_input.crawl_id
 schema:
   $schema: https://json-schema.org/draft/2020-12/schema
   type: object

@@ -18,7 +18,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check": "pnpm run format:check && pnpm run check-env && pnpm run typecheck",
-    "typecheck": "tsc --noEmit --strict --target es2022 --module esnext --moduleResolution bundler --lib es2023,dom --skipLibCheck windmill/f/waggle/trigger_run.ts windmill/f/waggle/crawl_host.ts windmill/f/waggle/plan_level.ts windmill/f/waggle/report_level.ts",
+    "typecheck": "tsc --noEmit --strict --target es2022 --module esnext --moduleResolution bundler --lib es2023,dom --skipLibCheck windmill/f/waggle/trigger_run.ts windmill/f/waggle/crawl_host.ts windmill/f/waggle/plan_level.ts windmill/f/waggle/report_level.ts windmill/f/waggle/index_level.ts",
     "windmill:push-proto": "node --env-file-if-exists=.env scripts/push-proto.mjs",
     "proto:check": "node scripts/proto-check.mjs"
   },
