@@ -1,0 +1,73 @@
+# Apple Container 上の Windmill。動かすのは container-compose
+# (https://github.com/Mcrich23/Container-Compose —— Homebrew で入れる)。
+#
+#   container-compose up -d        # 起動する
+#   container-compose down         # 停止する。volume (とその中身) は残る
+#
+# マシンごとに 1 度だけ要る用意:
+#   sudo container system dns create forage
+# project 名と同じ DNS ドメインがあると、container-compose は real-DNS モードに
+# 入る: コンテナは <service>.forage という名前になり、プラットフォームの DNS に
+# 登録され、他のコンテナからも host からも引ける。
+# container_name: を足してはならない —— DNS の命名が抑止され、`container exec` で
+# 各コンテナの中の /etc/hosts を書き換える方式に落ちる。
+#
+# ## なぜ上流の compose を写さないのか
+#
+# 上流 (windmill-labs/windmill) の docker-compose.yml は 8 サービス —— db、server、
+# worker ×3、native worker、indexer、LSP、Caddy。あれは「1 台で本番を張る」ための形で、
+# ここが要るのは **waggle の実行 API を時刻どおりに叩くこと** だけ。
+#
+# `MODE=standalone` は server と worker を 1 プロセスで兼ねる。それで 2 サービスに
+# 収まる。NUM_WORKERS は standalone では 1 に固定されるが、ここで走る仕事は
+# 「HTTP を叩いて待つ」だけなので、並列度は要らない。
+#
+# **`windmill-full` イメージは使わない** —— amd64 しか publish されていないため
+# (registry で確認済み)。素の `windmill` には arm64 がある。
+name: forage
+
+services:
+  # Windmill 専用の Postgres。waggle の `postgres` とも `openfga-db` とも分ける。
+  #
+  # 分ける理由は openfga-db と同じ: 1 つのインスタンスを共用すると、他のサービスの
+  # トランザクションの中で Windmill の状態を触れるかのような思い込みを誘う。
+  # 実際には触れない —— Windmill へは HTTP API 経由でしか書かない。
+  windmill-db:
+    image: docker.io/library/postgres:17-alpine
+    environment:
+      - POSTGRES_USER=windmill
+      - POSTGRES_PASSWORD=windmill
+      - POSTGRES_DB=windmill
+      # named volume はフォーマット済みのファイルシステムなので、mount 先には
+      # 最初から lost+found が居る。すると initdb が使うことを拒む
+      # ("directory exists but is not empty")。クラスタは mount 先のサブ
+      # ディレクトリに置く —— image 自身が案内している対処。
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - windmill-db-data:/var/lib/postgresql/data
+
+  windmill:
+    # 版は固定する。**タグに `v` は付かない** (`v1.806.0` は存在しない)。
+    # arm64 が publish されているのはこの名前のイメージだけ。
+    image: ghcr.io/windmill-labs/windmill:1.806.0
+    environment:
+      # server と worker を 1 プロセスで兼ねる。
+      - MODE=standalone
+      # **複合値にしてある。** 素のサービス名を値に書くと container-compose が
+      # その IP に書き換えてしまう (browserhive で実測、replay で 403 になった)。
+      # URL の一部として書けばその書き換えは起きない。
+      - DATABASE_URL=postgres://windmill:windmill@windmill-db.forage:5432/windmill?sslmode=disable
+      - BASE_URL=http://127.0.0.1:8000
+      - RUST_LOG=info
+    ports:
+      # loopback に閉じる。ここに届く者は workspace を作り替えられる。
+      - "127.0.0.1:8000:8000"
+    # 起動順しか買えない —— container-compose に healthcheck による待ちは無い。
+    # Windmill 自身が接続を再試行するので、これで足りる。
+    depends_on:
+      - windmill-db
+    # standalone は server と worker を兼ねるぶん、素の server より要る。
+    mem_limit: 2gb
+
+volumes:
+  windmill-db-data:

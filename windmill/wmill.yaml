@@ -1,0 +1,22 @@
+# wmill CLI の設定。`wmill sync push` / `pull` がこれを読む。
+#
+# **`includeSchedules: true` が肝。** 既定では schedule は同期されず、UI で作った
+# 定期実行が git のどこにも現れない —— 「いつ走るか」がこの repo の唯一の仕事なのに、
+# その設定だけが追跡から漏れる。
+defaultTs: bun
+includes:
+  - f/**
+excludes: []
+codebases: []
+includeSchedules: true
+includeTriggers: false
+includeUsers: false
+includeGroups: false
+includeSettings: false
+# 変数は同期しない。**秘密が git に落ちるため。**
+# `u/admin/waggle_token` は scripts/waggle-token.mjs が API 経由で入れる。
+includeKey: false
+skipVariables: true
+skipResources: true
+skipResourceTypes: true
+skipSecrets: true

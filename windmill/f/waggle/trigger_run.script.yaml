@@ -1,0 +1,39 @@
+summary: waggle に取り込みを 1 回起こす
+description: |
+  waggle の POST /api/runs を叩き、終わるまで見届ける。
+
+  走行中なら 409 が返るので、そのときは何もせず緑で終わる (再試行しない)。
+  取り込みが失敗したときだけ赤くなる。
+
+  取り込む形式 (wacz など) は waggle 側の WAGGLE_API_RUN_FORMATS が決める。
+  ここから渡せるのは limit だけ。
+lock: ""
+kind: script
+schema:
+  $schema: "https://json-schema.org/draft/2020-12/schema"
+  type: object
+  order:
+    - waggle_url
+    - token
+    - limit
+    - timeout_ms
+  properties:
+    waggle_url:
+      type: string
+      description: コンテナから見た waggle-api の URL
+      default: "http://192.168.64.1:7070"
+    token:
+      type: string
+      description: waggle の dev issuer が出した JWT
+      format: password
+    limit:
+      type: integer
+      description: 投げる対象の上限。省くと enabled な行を全部
+      minimum: 1
+    timeout_ms:
+      type: integer
+      description: 見届けを諦めるまで。既定は 2 時間
+      default: 7200000
+  required:
+    - waggle_url
+    - token

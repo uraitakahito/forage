@@ -1,0 +1,14 @@
+# pnpm 11 は依存の lifecycle script を既定で実行しない。ここに挙がっているのは
+# 「実行してよいか」を pnpm に聞かれたパッケージ。
+#
+#   esbuild — windmill-cli 経由。bin/esbuild は @esbuild/<platform> を **実行時に**
+#             解決する Node のシムで、platform パッケージは optional dependency
+#             として postinstall と無関係に入る。だから false でも動く
+#             (waggle で実測済み —— あちらの pnpm-workspace.yaml に同じ記録がある)。
+allowBuilds:
+  esbuild: false
+
+# windmill-cli は server と同じ版を追う (ほぼ毎日出る)。新しさを理由に
+# 止められると、server の版を上げるたびに手が要る。
+minimumReleaseAgeExclude:
+  - windmill-cli@1.806.0

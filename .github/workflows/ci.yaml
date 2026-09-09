@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # ステップを個別に並べているのは、どれが落ちたかを GitHub の UI で
+      # 一目で分かるようにするため。`pnpm run check` を 1 行で呼ぶと、
+      # 最初に落ちた 1 つの後ろが全部見えなくなる。
+      - name: Format check
+        run: pnpm run format:check
+
+      - name: Env check
+        run: pnpm run check-env
+
+      # 引き金のスクリプトは Windmill の worker (bun) が動かすので、
+      # ここでは型だけ見る。実行は往復で確かめる。
+      - name: Typecheck the trigger script
+        run: pnpm exec tsc --noEmit --strict --target es2022 --module esnext --moduleResolution bundler --lib es2023,dom windmill/f/waggle/trigger_run.ts
+
+      # compose が壊れていないこと。container-compose は CI に無いので、
+      # YAML として読めることだけを見る。
+      - name: Parse docker-compose.yml
+        run: node -e "const {parse}=require('yaml');const fs=require('fs');const d=parse(fs.readFileSync('docker-compose.yml','utf8'));if(d.name!=='forage')throw new Error('project 名が forage でない');if(!d.services.windmill)throw new Error('windmill サービスが無い');console.log('ok:',Object.keys(d.services).join(', '))"

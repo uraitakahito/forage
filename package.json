@@ -1,0 +1,28 @@
+{
+  "name": "forage",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Windmill が waggle の取り込みを時刻どおりに起こす",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "windmill:bootstrap": "node --env-file-if-exists=.env scripts/bootstrap.mjs",
+    "windmill:waggle-token": "node --env-file-if-exists=.env scripts/waggle-token.mjs",
+    "windmill:push": "node --env-file-if-exists=.env scripts/wmill.mjs sync push --yes",
+    "windmill:pull": "node --env-file-if-exists=.env scripts/wmill.mjs sync pull --yes",
+    "windmill:diff": "node --env-file-if-exists=.env scripts/wmill.mjs sync push --dry-run",
+    "check-env": "node scripts/check-env.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "pnpm run format:check && pnpm run check-env && pnpm run typecheck",
+    "typecheck": "tsc --noEmit --strict --target es2022 --module esnext --moduleResolution bundler --lib es2023,dom windmill/f/waggle/trigger_run.ts"
+  },
+  "devDependencies": {
+    "prettier": "3.6.2",
+    "windmill-cli": "1.806.0",
+    "typescript": "5.9.3",
+    "yaml": "2.8.1"
+  }
+}
