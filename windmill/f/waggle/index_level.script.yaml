@@ -1,0 +1,15 @@
+summary: ""
+description: ""
+lock: "!inline f/waggle/index_level.script.lock"
+kind: script
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  type: object
+  properties:
+    crawl_id:
+      type: string
+      description: ""
+      default: null
+      originalType: string
+  required:
+    - crawl_id
