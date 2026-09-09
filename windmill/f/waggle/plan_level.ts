@@ -10,13 +10,17 @@
  * Windmill の per-key concurrency limit に頼らないのは Community Edition で効かないから
  * (`crawl_host.ts` の冒頭に詳しい)。**ループの形で強制する。**
  *
- * ## robots.txt は 1 ホスト 1 回
+ * ## robots.txt は 1 段につき 1 ホスト 1 回
  *
- * 段ごとに引き直さない。1 回のクロールの途中で robots が変わることは考えなくてよく、
- * 段ごとに引くと、それ自体が余計なアクセスになる。
+ * この script は段ごとに 1 回走るので、robots も段ごとに引き直される —— 2 段なら
+ * 2 回 (実測で確認)。段の中では何 URL あっても 1 回。
+ *
+ * 段をまたいで持ち越さないのは、持ち越す先が無いから: 段は別のジョブで、Windmill の
+ * 状態は共有されない (`getState` は path と flow に紐づく)。1 段 1 回で受け入れる。
  *
  * `Crawl-delay` があれば、設定した間隔と比べて**長いほうを採る**。相手が言っている値を
- * こちらの都合で縮めない。
+ * こちらの都合で縮めない。実測: 設定 1000ms に対して meadow の `Crawl-delay: 3` が
+ * 勝ち、間隔は 3203 / 3014 / 3006ms になった。
  */
 import robotsParser from "robots-parser";
 
@@ -77,8 +81,19 @@ const fetchRobots = async (host: string, scheme: string) => {
 export async function main(
   candidates: Candidate[],
   per_host_delay_ms: number,
-  respect_robots = true,
+  respect_robots: boolean | null = true,
 ): Promise<Plan> {
+  // **`null` を「未設定」として扱う。既定引数では足りない。**
+  //
+  // flow の input_transform は `flow_input.respect_robots` を評価し、渡されていなければ
+  // JavaScript の `undefined` になる —— が、Windmill はそれを JSON の **`null`** として
+  // 渡してくる。TypeScript の既定引数が効くのは `undefined` のときだけなので、`null` は
+  // そのまま素通りし、falsy なので robots が一度も読まれない。
+  //
+  // 実測で踏んだ: `Disallow: /links/hidden` のページが取り込まれ、**クロールは成功し、
+  // アーカイブも正常に見えた**。meadow の fixture が無ければ気づけなかった。
+  const respectRobots = respect_robots ?? true;
+
   const byHost = new Map<string, Candidate[]>();
   for (const c of candidates) {
     const list = byHost.get(c.host);
@@ -95,7 +110,7 @@ export async function main(
     // scheme は最初の URL から取る。同じホストで混在していれば、そちらは別の
     // origin なので既に範囲の絞り込みで落ちている (waggle 側の `inScope`)。
     const scheme = new URL(first.url).protocol;
-    const robots = respect_robots ? await fetchRobots(host, scheme) : undefined;
+    const robots = respectRobots ? await fetchRobots(host, scheme) : undefined;
 
     const allowed: string[] = [];
     for (const c of list) {
@@ -129,9 +144,13 @@ export async function main(
   }
 
   const total = groups.reduce((n, g) => n + g.urls.length, 0);
+  // **robots を読んだかどうかを必ず出す。** 「見送り 0 件」は「規則が無い」と
+  // 「規則を読んでいない」の両方に見えるので、区別が付くようにしておく。
   console.log(
     `${String(groups.length)} ホスト / ${String(total)} URL` +
-      (skipped.length > 0 ? ` (robots で ${String(skipped.length)} 件を見送り)` : ""),
+      ` (robots: ${respectRobots ? "尊重" : "無視"}` +
+      (skipped.length > 0 ? `、${String(skipped.length)} 件を見送り` : "") +
+      ")",
   );
 
   return { groups, skipped };
