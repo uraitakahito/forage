@@ -123,6 +123,7 @@ export async function main(
 
     if (allowed.length === 0) continue;
 
+    // #region delay
     // **長いほうを採る。** 相手が言っている値をこちらの都合で縮めない。
     const crawlDelaySec = robots?.getCrawlDelay(USER_AGENT);
     const delayMs =
@@ -139,6 +140,7 @@ export async function main(
         ? Number.POSITIVE_INFINITY
         : Date.now() - new Date(lastFinished).getTime();
     const initialDelayMs = Number.isFinite(sinceMs) ? Math.max(0, delayMs - sinceMs) : 0;
+    // #endregion delay
 
     groups.push({ host, urls: allowed, delayMs, initialDelayMs });
   }

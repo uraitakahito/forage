@@ -1,0 +1,63 @@
+name: docs
+
+# docs-site を GitHub Pages へ配信する。
+#
+#   /forage/      → English
+#   /forage/ja/   → 日本語
+#
+# Security:
+#   - 引き金は main への push と手動のみ。**pull_request では走らせない** ——
+#     fork のコードを Pages の権限付きでビルドすることになる。PR 側の読み取り専用の
+#     guard は site.yaml。
+#   - 権限は job ごとに分ける: build は contents:read、deploy は pages:write と
+#     id-token:write (deploy-pages の OIDC に要る)。
+#   - secret を 1 つも参照しない。
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "windmill/**"
+      - "docs-site/**"
+      - "scripts/check-doc-refs.mjs"
+      - "package.json"
+      - ".github/workflows/docs.yaml"
+  workflow_dispatch:
+
+# 配信は 1 度に 1 つ。cancel-in-progress にしないのは、公開されているものの
+# 中途半端な配信は待つより悪いから。
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # site:build ではなく site:check。配信するものが、訳の欠けたページや
+      # 抜き出しに失敗したコード片を抱えていてはいけない。数秒で済む。
+      - name: Build and verify
+        run: pnpm run site:check
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: docs-site/dist
+
+  deploy:
+    needs: [build]
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+    steps:
+      - uses: actions/deploy-pages@v5

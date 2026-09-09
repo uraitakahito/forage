@@ -131,6 +131,7 @@ const captureOne = async (
   client: Record<string, unknown>,
   url: string,
   crawlId: string,
+  pollMs: number = POLL_INTERVAL_MS,
 ): Promise<PageResult> => {
   const submittedAt = new Date().toISOString();
 
@@ -154,7 +155,7 @@ const captureOne = async (
         skipReason: "timed out waiting for the capture",
       };
     }
-    await sleep(POLL_INTERVAL_MS);
+    await sleep(pollMs);
 
     const got = await call<GetCaptureResponse>(client, "getCapture", { taskId: submitted.taskId });
     if (got.state !== "CAPTURE_STATE_DONE") continue;
@@ -175,6 +176,61 @@ const captureOne = async (
   }
 };
 
+/**
+ * 1 ホストぶんを順に取り込む。**礼儀の本体はここ。**
+ *
+ * `main` から切り出してあるのは、**client を受け取る形なら試験できる**から。
+ * `call()` は `client[method](req, cb)` を呼ぶだけなので、偽物はただのオブジェクトで
+ * 足りる —— gRPC も Windmill も要らない。`main` に残るのは「変数を読む →
+ * つなぐ → ここへ委ねる」だけで、そちらは往復でしか確かめられない。
+ *
+ * `pollMs` を引数にしているのも試験のため。既定の 3 秒のままだと 1 件ごとに
+ * 3 秒かかる。**fake timer は使わない** —— capture 系の sleep で一度溶かしている
+ * (browserhive PR #253)。実タイマーの ms スケールで回す。
+ */
+export const captureHost = async (
+  client: Record<string, unknown>,
+  host: string,
+  urls: string[],
+  crawlId: string,
+  perHostDelayMs: number,
+  initialDelayMs = 0,
+  pollMs: number = POLL_INTERVAL_MS,
+): Promise<PageResult[]> => {
+  const results: PageResult[] = [];
+
+  // #region pacing
+  // **段をまたぐぶんの待ち。** 前の段でこのホストを触っていれば、その完了からの経過を
+  // 差し引いた残りをここで待つ。これが無いと段の境目だけ間隔が空かない (実測 521ms)。
+  if (initialDelayMs > 0) {
+    console.log(`[${host}] 前の段からの間隔を空ける: ${String(initialDelayMs)}ms`);
+    await sleep(initialDelayMs);
+  }
+
+  for (const [index, url] of urls.entries()) {
+    // **間隔は完了の後。** 1 件目の前は上で済ませてある。
+    if (index > 0 && perHostDelayMs > 0) await sleep(perHostDelayMs);
+
+    // #endregion pacing
+
+    console.log(`[${host}] ${String(index + 1)}/${String(urls.length)} ${url}`);
+    try {
+      results.push(await captureOne(client, url, crawlId, pollMs));
+    } catch (err) {
+      // 1 件の失敗でこのホストを止めない。木の他の枝は進めてよい。
+      results.push({
+        url,
+        status: "failed",
+        submittedAt: new Date().toISOString(),
+        finishedAt: new Date().toISOString(),
+        skipReason: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  return results;
+};
+
 export async function main(
   crawl_id: string,
   host: string,
@@ -189,33 +245,5 @@ export async function main(
   // どう見えるかを知らないので、送らせることもできない。
   const target = await wmill.getVariable("u/admin/browserhive_target");
   const client = await connect(target);
-  const results: PageResult[] = [];
-
-  // **段をまたぐぶんの待ち。** 前の段でこのホストを触っていれば、その完了からの経過を
-  // 差し引いた残りをここで待つ。これが無いと段の境目だけ間隔が空かない (実測 521ms)。
-  if (initial_delay_ms > 0) {
-    console.log(`[${host}] 前の段からの間隔を空ける: ${String(initial_delay_ms)}ms`);
-    await sleep(initial_delay_ms);
-  }
-
-  for (const [index, url] of urls.entries()) {
-    // **間隔は完了の後。** 1 件目の前は上で済ませてある。
-    if (index > 0 && per_host_delay_ms > 0) await sleep(per_host_delay_ms);
-
-    console.log(`[${host}] ${String(index + 1)}/${String(urls.length)} ${url}`);
-    try {
-      results.push(await captureOne(client, url, crawl_id));
-    } catch (err) {
-      // 1 件の失敗でこのホストを止めない。木の他の枝は進めてよい。
-      results.push({
-        url,
-        status: "failed",
-        submittedAt: new Date().toISOString(),
-        finishedAt: new Date().toISOString(),
-        skipReason: err instanceof Error ? err.message : String(err),
-      });
-    }
-  }
-
-  return results;
+  return captureHost(client, host, urls, crawl_id, per_host_delay_ms, initial_delay_ms);
 }
