@@ -133,9 +133,17 @@ schema:
       type: boolean
       description: robots.txt を尊重するか
       default: true
-  # waggle が送るのは crawl_id / depth / frontier / 間隔 / 並列度だけ。
-  # 残りは既定値が埋める —— waggle は自分がコンテナからどう見えるかを知らないし、
-  # issuer の鍵も持っていない。
+  # waggle が送るのは crawl_id / depth / frontier / 間隔 / 並列度の 5 つだけ。
+  # waggle は自分がコンテナからどう見えるかを知らないし、issuer の鍵も持っていない。
+  #
+  # **下の default は webhook からの実行では埋まらない。** 実測: 必須の引数だけ渡して
+  # 起こすと、host_parallelism も respect_robots も「渡されていない」まま届く。
+  # 既定値が埋まるのは UI からの実行だけ。
+  #
+  # つまり respect_robots は **常に null で届く**。robots を守っているのは
+  # plan_level.ts の `?? true` **1 か所だけ**で、ここの default ではない。
+  # 消すと robots が黙って無視される (test/plan-level.test.ts と
+  # test/e2e/crawl-level.e2e.test.ts の両方が赤くなる)。
   required:
     - crawl_id
     - depth

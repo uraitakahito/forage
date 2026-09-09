@@ -1,0 +1,18 @@
+{
+  "name": "forage-docs-site",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.41.7",
+    "astro": "^7.2.0"
+  },
+  "devDependencies": {
+    "@astrojs/markdown-satteri": "^0.3.5",
+    "satteri": "^0.9.5"
+  }
+}
