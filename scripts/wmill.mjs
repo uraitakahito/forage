@@ -9,6 +9,7 @@
  * `wmill.yaml` は `windmill/` に在るので、そこを cwd にして呼ぶ。
  */
 import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { guardEnv, optional, required, windmillUrl, windmillWorkspace } from "./env.mjs";
@@ -17,6 +18,19 @@ guardEnv();
 
 const here = dirname(fileURLToPath(import.meta.url));
 const syncRoot = join(here, "..", "windmill");
+
+/**
+ * `wmill` の実体を **PATH に頼らずに** 引く。
+ *
+ * `pnpm run` から呼ぶときは `node_modules/.bin` が PATH に入るが、
+ * `node scripts/wmill.mjs` と直に叩くと入らない —— そのとき ENOENT になって
+ * 「pnpm install は済んでいますか」と的外れなことを言う羽目になる (実際に踏んだ)。
+ */
+const binary = join(here, "..", "node_modules", ".bin", "wmill");
+if (!existsSync(binary)) {
+  process.stderr.write(`${binary} がありません。pnpm install を実行してください。\n`);
+  process.exit(1);
+}
 
 const token = required(
   "WINDMILL_TOKEN",
@@ -31,7 +45,7 @@ if (args.length === 0) {
 
 // `--base-url` を使うときは `--token` と `--workspace` が必須。3 つ揃えて渡す。
 const result = spawnSync(
-  "wmill",
+  binary,
   [...args, "--base-url", windmillUrl(), "--token", token, "--workspace", windmillWorkspace()],
   {
     cwd: syncRoot,
@@ -41,9 +55,7 @@ const result = spawnSync(
 );
 
 if (result.error !== undefined) {
-  process.stderr.write(
-    `wmill を起動できません: ${result.error.message}\n  pnpm install は済んでいますか\n`,
-  );
+  process.stderr.write(`wmill を起動できません: ${result.error.message}\n`);
   process.exit(1);
 }
 process.exit(result.status ?? 1);

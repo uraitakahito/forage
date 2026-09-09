@@ -80,6 +80,25 @@ JWT が dev ヘッダより優先されるのは意図された設計で、「�
 コメントアウトする。**両立させる仕組みは作っていない** —— それは identity の設計を
 変える話で、別件。
 
+## いつ走るか
+
+`windmill/f/waggle/daily.schedule.yaml` —— **毎日 04:00 (Asia/Tokyo)**。
+
+```yaml
+schedule: 0 0 4 * * * # 秒 分 時 日 月 曜
+timezone: Asia/Tokyo
+enabled: true
+```
+
+止めたいときは `enabled: false` にして `pnpm run windmill:push`。
+
+**重なりは気にしなくてよい。** Windmill は前の job が走っていても次を起こすが、
+waggle が走行中の 2 本目を 409 で拒み、こちらはそれを「見送り」として緑で終える。
+つまり時刻が詰まっていても、走るのは常に 1 本。
+
+このファイルは `wmill sync pull` が書き換えるので、**コメントを書いても消える**。
+理由はここに書くこと。
+
 ## 変更のしかた
 
 Windmill の UI で触った結果は、必ず git に戻すこと。

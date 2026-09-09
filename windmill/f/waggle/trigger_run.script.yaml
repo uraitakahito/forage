@@ -7,10 +7,10 @@ description: |
 
   取り込む形式 (wacz など) は waggle 側の WAGGLE_API_RUN_FORMATS が決める。
   ここから渡せるのは limit だけ。
-lock: ""
+lock: "!inline f/waggle/trigger_run.script.lock"
 kind: script
 schema:
-  $schema: "https://json-schema.org/draft/2020-12/schema"
+  $schema: https://json-schema.org/draft/2020-12/schema
   type: object
   order:
     - waggle_url
@@ -18,14 +18,6 @@ schema:
     - limit
     - timeout_ms
   properties:
-    waggle_url:
-      type: string
-      description: コンテナから見た waggle-api の URL
-      default: "http://192.168.64.1:7070"
-    token:
-      type: string
-      description: waggle の dev issuer が出した JWT
-      format: password
     limit:
       type: integer
       description: 投げる対象の上限。省くと enabled な行を全部
@@ -34,6 +26,14 @@ schema:
       type: integer
       description: 見届けを諦めるまで。既定は 2 時間
       default: 7200000
+    token:
+      type: string
+      description: waggle の dev issuer が出した JWT
+      format: password
+    waggle_url:
+      type: string
+      description: コンテナから見た waggle-api の URL
+      default: http://192.168.64.1:7070
   required:
     - waggle_url
     - token

@@ -64,7 +64,9 @@ const ensureWorkspace = async (token, id) => {
   await windmillFetch("/api/workspaces/create", {
     token,
     method: "POST",
-    body: { id, name: id, username: "admin" },
+    // `username` は渡さない —— この配備では作成が自動化されているので、
+    // 明示すると 400 ("username is not allowed when username creation is automated")。
+    body: { id, name: id },
   });
   process.stderr.write(`workspace "${id}" を作りました。\n`);
 };
