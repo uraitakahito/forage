@@ -1,3 +1,9 @@
+# docs-site も同じ workspace に入れる。lockfile を 1 本にしておかないと、
+# 「root は pnpm、docs-site は npm」という状態が残り、install が 2 回要る
+# (meadow がその形。waggle はこちら)。
+packages:
+  - "docs-site"
+
 # pnpm 11 は依存の lifecycle script を既定で実行しない。ここに挙がっているのは
 # 「実行してよいか」を pnpm に聞かれたパッケージ。
 #

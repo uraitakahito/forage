@@ -1,0 +1,26 @@
+{
+  // Windmill の script と、その試験を同じ設定で見る。
+  //
+  // **以前はここが `package.json` のコマンドラインだった。** script を 1 本足すたびに
+  // ファイル名を手で並べ足す形で、実際に `index_level.ts` を足したとき忘れて
+  // 型検査から漏れた。`include` に任せれば漏れない。
+  //
+  // `windmill/f/**` は Windmill の worker が **bun** で動かす (`wmill.yaml` の
+  // `defaultTs: bun`)。ここで見るのは型だけで、実行は往復で確かめる。
+  "compilerOptions": {
+    "noEmit": true,
+    "strict": true,
+    "target": "es2022",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    // `dom` が要るのは `fetch` / `Response` / `AbortSignal` のため。
+    // `node` の型は試験側 (`fs`, `net`) で要る。
+    "lib": ["es2023", "dom"],
+    "types": ["node"],
+    // 依存の .d.ts までは見ない。windmill-client は生成物で、こちらの責任ではない。
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true
+  },
+  "include": ["windmill/f/**/*.ts", "test/**/*.ts", "vitest.config.ts"]
+}

@@ -1,0 +1,37 @@
+name: site
+
+# docs-site の読み取り専用の点検。**配信はしない。**
+#
+# Security:
+#   - permissions は contents:read だけ。secret を 1 つも参照しない。配信する
+#     docs.yaml が main でしか走らないのに対し、こちらは pull_request でも安全 ——
+#     publish の step が無いので、fork の PR が配信内容を選ぶことはできない。
+#
+# なぜ site:build ではなく site:check なのか:
+#   `.md` のページでは、`// #region` の抜き出しが失敗しても `astro build` は緑で
+#   終わる (Starlight の docs loader が例外を捕まえるため)。forage のページは全部
+#   `.md` なので、**ビルドは守りにならない**。実測でも region を改名したまま
+#   ビルドが通った。非 0 で落ちるのは check-doc-refs.mjs だけ。
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  site:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build and verify
+        run: pnpm run site:check

@@ -15,7 +15,9 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 22
+          # 版は .nvmrc 1 か所。docs.yaml と site.yaml も同じものを読む ——
+          # 直書きすると写しが増え、育つのは片方だけになる。
+          node-version-file: .nvmrc
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
@@ -29,10 +31,19 @@ jobs:
       - name: Env check
         run: pnpm run check-env
 
-      # 引き金のスクリプトは Windmill の worker (bun) が動かすので、
-      # ここでは型だけ見る。実行は往復で確かめる。
-      - name: Typecheck the trigger script
-        run: pnpm exec tsc --noEmit --strict --target es2022 --module esnext --moduleResolution bundler --lib es2023,dom windmill/f/waggle/trigger_run.ts
+      # script は Windmill の worker (bun) が動かすので、ここでは型だけ見る。
+      #
+      # **設定を写さない。** 以前ここには tsc の引数が直書きされていて、
+      # package.json 側が 5 本を見るようになった後も CI は trigger_run.ts 1 本しか
+      # 見ていなかった (--skipLibCheck の有無も食い違っていた)。写しが 2 つあると、
+      # 育つのは片方だけになる。tsconfig.json が唯一の設定。
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      # 単体だけ。e2e は Windmill・waggle・browserhive・meadow が要るので
+      # ここでは走らせない (pnpm run test:e2e を手で)。
+      - name: Test
+        run: pnpm test
 
       # compose が壊れていないこと。container-compose は CI に無いので、
       # YAML として読めることだけを見る。

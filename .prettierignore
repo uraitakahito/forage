@@ -1,3 +1,5 @@
 node_modules
 pnpm-lock.yaml
 .git
+docs-site/.astro
+docs-site/dist
