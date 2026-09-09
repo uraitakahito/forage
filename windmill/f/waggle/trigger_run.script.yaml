@@ -19,21 +19,25 @@ schema:
     - timeout_ms
   properties:
     limit:
-      type: integer
+      type: number
       description: 投げる対象の上限。省くと enabled な行を全部
+      default: null
       minimum: 1
     timeout_ms:
-      type: integer
+      type: number
       description: 見届けを諦めるまで。既定は 2 時間
-      default: 7200000
+      default: null
     token:
       type: string
       description: waggle の dev issuer が出した JWT
+      default: null
       format: password
+      originalType: string
     waggle_url:
       type: string
       description: コンテナから見た waggle-api の URL
-      default: http://192.168.64.1:7070
+      default: null
+      originalType: string
   required:
     - waggle_url
     - token

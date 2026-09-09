@@ -17,6 +17,7 @@
  *
  * 返り値は log と、この段が何をしたかの記録として残す。
  */
+import * as wmill from "windmill-client";
 
 export interface PageResult {
   url: string;
@@ -41,12 +42,17 @@ export interface LevelOutcome {
 }
 
 export async function main(
-  waggle_url: string,
-  token: string,
   crawl_id: string,
   depth: number,
   results: PageResult[],
 ): Promise<LevelOutcome> {
+  // **設定は変数から読む。引数では受けない。**
+  // Windmill は schema の既定値を UI からの実行にしか埋めない (`crawl_host.ts` に詳しい)。
+  // token は waggle 自身が持っていないもの —— issuer の鍵は host の loopback に在る ——
+  // なので、どちらにせよ waggle からは送れない。
+  const waggle_url = await wmill.getVariable("u/admin/waggle_api_url");
+  const token = await wmill.getVariable("u/admin/waggle_token");
+
   const res = await fetch(`${waggle_url}/api/crawls/${crawl_id}/pages`, {
     method: "POST",
     headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },

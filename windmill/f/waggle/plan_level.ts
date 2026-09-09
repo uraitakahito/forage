@@ -26,6 +26,8 @@ const USER_AGENT = "*";
 export interface Candidate {
   url: string;
   host: string;
+  /** このホストを最後に触り終えた時刻。waggle が入れる。最初の段は null。 */
+  lastFinishedAt?: string | null;
 }
 
 export interface HostGroup {
@@ -33,6 +35,14 @@ export interface HostGroup {
   urls: string[];
   /** このホストに対して実際に使う間隔。robots が長い値を言っていればそれ。 */
   delayMs: number;
+  /**
+   * **1 件目を投げる前に待つ時間。**
+   *
+   * 間隔は `crawl_host` の呼び出し 1 回の中でしか効かない。段は呼び出しが分かれるので、
+   * これが無いと**段の境目だけ間隔が空かない** —— 実測で 521ms まで詰まった
+   * (設定は 3000ms)。前の段の完了からの経過を差し引いた残りを、ここで待つ。
+   */
+  initialDelayMs: number;
 }
 
 export interface Skipped {
@@ -105,7 +115,17 @@ export async function main(
         ? Math.max(per_host_delay_ms, Math.round(crawlDelaySec * 1000))
         : per_host_delay_ms;
 
-    groups.push({ host, urls: allowed, delayMs });
+    // 前の段でこのホストを触り終えてからの経過を差し引く。
+    const lastFinished = list
+      .map((c) => c.lastFinishedAt)
+      .find((t) => t !== null && t !== undefined);
+    const sinceMs =
+      lastFinished === undefined || lastFinished === null
+        ? Number.POSITIVE_INFINITY
+        : Date.now() - new Date(lastFinished).getTime();
+    const initialDelayMs = Number.isFinite(sinceMs) ? Math.max(0, delayMs - sinceMs) : 0;
+
+    groups.push({ host, urls: allowed, delayMs, initialDelayMs });
   }
 
   const total = groups.reduce((n, g) => n + g.urls.length, 0);

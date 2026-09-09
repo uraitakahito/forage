@@ -1,0 +1,130 @@
+summary: クロール 1 段
+description: |
+  waggle が投げた 1 段を処理して報告する。
+
+  この flow は **1 段で終わる**。次の段を起こすのは waggle —— Windmill の while ループに
+  繰り返しを持たせようとしたが、stop_after_if を付けた最小の flow が 643 回まで回り続けた
+  (実測)。相手のサーバに負荷をかけない仕組みを、暴走しうるループの上には載せない。
+
+  礼儀はこの flow の形で守る:
+    - ホストで束ねる            (plan_level)
+    - ホストを並列に回す        for-loop の parallelism —— CE で効く唯一の同時実行の枠
+    - ホスト内は逐次 + 間隔     (crawl_host)
+
+  Windmill の per-key concurrency limit は使わない。実装が jobs_ee.rs にあり、
+  Community Edition では常に許可を返すスタブなので、**設定しても無言で素通しになる**。
+value:
+  modules:
+    - id: plan
+      summary: ホストで束ね、robots を見る
+      value:
+        type: script
+        path: f/waggle/plan_level
+        input_transforms:
+          candidates:
+            type: javascript
+            expr: flow_input.frontier
+          per_host_delay_ms:
+            type: javascript
+            expr: flow_input.per_host_delay_ms
+          respect_robots:
+            type: javascript
+            expr: flow_input.respect_robots
+    - id: hosts
+      summary: ホストごとに並列、ホスト内は逐次
+      value:
+        type: forloopflow
+        modules:
+          - id: cap
+            value:
+              type: script
+              path: f/waggle/crawl_host
+              input_transforms:
+                crawl_id:
+                  type: javascript
+                  expr: flow_input.crawl_id
+                host:
+                  type: javascript
+                  expr: flow_input.iter.value.host
+                urls:
+                  type: javascript
+                  expr: flow_input.iter.value.urls
+                per_host_delay_ms:
+                  type: javascript
+                  expr: flow_input.iter.value.delayMs
+                initial_delay_ms:
+                  type: javascript
+                  expr: flow_input.iter.value.initialDelayMs
+        iterator:
+          type: javascript
+          expr: results.plan.groups
+        parallel: true
+        parallelism:
+          type: javascript
+          expr: flow_input.host_parallelism
+        skip_failures: false
+    - id: report
+      summary: waggle に報告する
+      value:
+        type: script
+        path: f/waggle/report_level
+        input_transforms:
+          crawl_id:
+            type: javascript
+            expr: flow_input.crawl_id
+          depth:
+            type: javascript
+            expr: flow_input.depth
+          results:
+            type: javascript
+            expr: |-
+              results.hosts.flat().concat(
+                results.plan.skipped.map((s) => ({ url: s.url, status: "skipped", skipReason: s.reason }))
+              )
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  type: object
+  order:
+    - crawl_id
+    - depth
+    - frontier
+    - per_host_delay_ms
+    - host_parallelism
+    - respect_robots
+  properties:
+    crawl_id:
+      type: string
+      description: waggle が発行したクロールの id
+    depth:
+      type: integer
+      description: この段の深さ。種が 0
+      minimum: 0
+    frontier:
+      type: array
+      description: この段で取る URL
+      items:
+        type: object
+        properties:
+          host:
+            type: string
+          url:
+            type: string
+    host_parallelism:
+      type: integer
+      description: 同時に触ってよいホストの数
+      default: 4
+    per_host_delay_ms:
+      type: integer
+      description: 同じホストへ、完了から次の投入まで空ける時間
+      default: 2000
+    respect_robots:
+      type: boolean
+      description: robots.txt を尊重するか
+      default: true
+  # waggle が送るのは crawl_id / depth / frontier / 間隔 / 並列度だけ。
+  # 残りは既定値が埋める —— waggle は自分がコンテナからどう見えるかを知らないし、
+  # issuer の鍵も持っていない。
+  required:
+    - crawl_id
+    - depth
+    - frontier

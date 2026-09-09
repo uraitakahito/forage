@@ -1,16 +1,20 @@
 #!/usr/bin/env node
 /**
- * vendor した proto を Windmill の変数に入れる。
+ * vendor した proto を Windmill の resource に入れる。
  *
- * ## なぜ変数なのか
+ * ## なぜ resource なのか
  *
  * Windmill の script は container の中で走るので、この repo のファイルを読めない。
  * `wmill.yaml` の `includes: [f/**]` が同期するのも script と flow だけで、任意の
  * ファイルは運べない。
  *
- * 残る道は 2 つ —— script の中に文字列として埋め込むか、変数に入れるか。後者にした。
- * 埋め込むと proto を更新するたびに TypeScript を書き換えることになり、差分が
- * 「契約が変わった」なのか「コードが変わった」なのか読めなくなる。
+ * 残る道は 3 つ —— script に埋め込む / 変数に入れる / resource に入れる。
+ *
+ * **変数には入らない。** 上限は 10,000〜20,000 バイトの間にあり、この proto は
+ * 16,315 バイトで超える (実測: 10,000 は 200、20,000 は 400)。resource には入った。
+ *
+ * 埋め込みを採らなかったのは、proto を更新するたびに TypeScript を書き換えることになり、
+ * 差分が「契約が変わった」なのか「コードが変わった」なのか読めなくなるため。
  *
  * ## 生成コードを使わない理由
  *
@@ -18,8 +22,7 @@
  * **実行時に**読める。運ぶのが 586 行で済み、型は失うが、この用途で使う RPC は 2 つだけ
  * (`SubmitCapture` / `GetCapture`)。
  *
- * 秘密ではないので `is_secret` は立てない —— 立てるとログで伏せられて、
- * 食い違ったときに読めなくなる。
+ * 秘密ではないので伏せない —— 伏せるとログから消えて、食い違ったときに読めなくなる。
  */
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -32,14 +35,14 @@ const here = dirname(fileURLToPath(import.meta.url));
 const PROTO_PATH = "u/admin/browserhive_proto";
 
 /** `waggle-token.mjs` と同じ形 —— create が 400 なら update に落ちる。 */
-const upsertVariable = async (token, path, value, isSecret) => {
+const upsertResource = async (token, path, value) => {
   const workspace = windmillWorkspace();
-  const body = { path, value, is_secret: isSecret, description: "forage が設定" };
+  const body = { path, value, resource_type: "state", description: "forage が設定" };
   try {
-    await windmillFetch(`/api/w/${workspace}/variables/create`, { token, method: "POST", body });
+    await windmillFetch(`/api/w/${workspace}/resources/create`, { token, method: "POST", body });
     return "作成";
   } catch {
-    await windmillFetch(`/api/w/${workspace}/variables/update/${path}`, {
+    await windmillFetch(`/api/w/${workspace}/resources/update/${path}`, {
       token,
       method: "POST",
       body,
@@ -56,8 +59,11 @@ const main = async () => {
     );
   }
 
-  const proto = readFileSync(join(here, "..", "proto", "browserhive", "v1", "capture.proto"), "utf8");
-  const action = await upsertVariable(windmillToken, PROTO_PATH, proto, false);
+  const proto = readFileSync(
+    join(here, "..", "proto", "browserhive", "v1", "capture.proto"),
+    "utf8",
+  );
+  const action = await upsertResource(windmillToken, PROTO_PATH, { proto });
 
   process.stderr.write(
     `${PROTO_PATH} を${action} (${String(proto.split("\n").length)} 行)\n\n` +

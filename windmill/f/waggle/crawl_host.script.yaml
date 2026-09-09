@@ -2,4 +2,37 @@ summary: 1 ホストぶんを逐次で取り込む
 description: |
   クロール 1 段を回す flow (f/waggle/crawl_level) の部品。
   単体で叩くものではない。
+lock: "!inline f/waggle/crawl_host.script.lock"
 kind: script
+schema:
+  properties:
+    crawl_id:
+      type: string
+      description: ""
+      default: null
+      originalType: string
+    host:
+      type: string
+      description: ""
+      default: null
+      originalType: string
+    initial_delay_ms:
+      type: integer
+      description: ""
+      default: 0
+    per_host_delay_ms:
+      type: number
+      description: ""
+      default: null
+    urls:
+      type: array
+      description: ""
+      default: null
+      items:
+        type: string
+      originalType: string[]
+  required:
+    - crawl_id
+    - host
+    - urls
+    - per_host_delay_ms

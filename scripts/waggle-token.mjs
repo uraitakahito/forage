@@ -24,6 +24,7 @@ guardEnv();
 
 const ISSUER = optional("WAGGLE_OIDC_ISSUER", "http://127.0.0.1:9099");
 const SUBJECT = optional("WAGGLE_SUBJECT", "windmill");
+const BROWSERHIVE_TARGET = optional("WAGGLE_BROWSERHIVE_TARGET", "browserhive.waggle:50051");
 const ORGANIZATIONS = optional("WAGGLE_ORGANIZATIONS", "acme")
   .split(",")
   .map((s) => s.trim())
@@ -32,6 +33,12 @@ const EXPIRES_IN = optional("WAGGLE_TOKEN_EXPIRES_IN", "30d");
 
 const TOKEN_PATH = "u/admin/waggle_token";
 const URL_PATH = "u/admin/waggle_api_url";
+/**
+ * browserhive の gRPC の宛先。**Windmill の script は変数からしか読めない** ——
+ * schema の既定値は UI からの実行にしか埋まらないので、webhook で起こすと引数は
+ * 素通りになる (実測)。だから設定は変数に置く。
+ */
+const TARGET_PATH = "u/admin/browserhive_target";
 
 const mintToken = async () => {
   const res = await fetch(`${ISSUER}/token`, {
@@ -96,10 +103,12 @@ const main = async () => {
   const jwt = await mintToken();
   const tokenAction = await upsertVariable(windmillToken, TOKEN_PATH, jwt, true);
   const urlAction = await upsertVariable(windmillToken, URL_PATH, waggleApiUrl(), false);
+  const targetAction = await upsertVariable(windmillToken, TARGET_PATH, BROWSERHIVE_TARGET, false);
 
   process.stderr.write(
     `${TOKEN_PATH} を${tokenAction} (sub=${SUBJECT} orgs=${ORGANIZATIONS.join(",")} exp=${EXPIRES_IN})\n` +
-      `${URL_PATH} を${urlAction} (${waggleApiUrl()})\n\n` +
+      `${URL_PATH} を${urlAction} (${waggleApiUrl()})\n` +
+      `${TARGET_PATH} を${targetAction} (${BROWSERHIVE_TARGET})\n\n` +
       `付与を忘れずに:  cd ../waggle && pnpm run fga:grant submitter ${SUBJECT} ${ORGANIZATIONS[0] ?? "acme"}\n`,
   );
 };

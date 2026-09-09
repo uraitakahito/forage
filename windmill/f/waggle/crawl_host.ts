@@ -72,7 +72,7 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
  *
  * 生成コードを持ち込まないのは、6308 行を Windmill の script に置きたくないから。
  * proto は 586 行で import も無い自己完結なので、`proto-loader` で足りる。
- * 中身は `scripts/push-proto.mjs` が変数に入れている。
+ * 中身は `scripts/push-proto.mjs` が resource に入れている。
  */
 const connect = async (target: string): Promise<Record<string, unknown>> => {
   const [protoLoader, grpc, fs, path, os] = await Promise.all([
@@ -82,7 +82,10 @@ const connect = async (target: string): Promise<Record<string, unknown>> => {
     import("node:path"),
     import("node:os"),
   ]);
-  const source = await wmill.getVariable("u/admin/browserhive_proto");
+  // 変数ではなく resource。proto は 16KB あり、変数の上限を超える。
+  const { proto: source } = (await wmill.getResource("u/admin/browserhive_proto")) as {
+    proto: string;
+  };
 
   // `loadSync` はファイルしか受けないので、一度だけ書き出す。
   const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "bh-")), "capture.proto");
@@ -106,7 +109,8 @@ const call = <T>(client: Record<string, unknown>, method: string, request: unkno
   new Promise((resolve, reject) => {
     (client[method] as (req: unknown, cb: (e: unknown, r: T) => void) => void)(
       request,
-      (err, res) => (err ? reject(err instanceof Error ? err : new Error(String(err))) : resolve(res)),
+      (err, res) =>
+        err ? reject(err instanceof Error ? err : new Error(String(err))) : resolve(res),
     );
   });
 
@@ -172,17 +176,30 @@ const captureOne = async (
 };
 
 export async function main(
-  browserhive_target: string,
   crawl_id: string,
   host: string,
   urls: string[],
   per_host_delay_ms: number,
+  initial_delay_ms = 0,
 ): Promise<PageResult[]> {
-  const client = await connect(browserhive_target);
+  // **設定は変数から読む。引数では受けない。**
+  // Windmill は schema の既定値を UI からの実行にしか埋めない —— webhook で起こすと
+  // 引数は素通りで、`browserhive_target` が undefined のまま
+  // 「Channel target must be a string」で落ちる (実測)。waggle は自分がコンテナから
+  // どう見えるかを知らないので、送らせることもできない。
+  const target = await wmill.getVariable("u/admin/browserhive_target");
+  const client = await connect(target);
   const results: PageResult[] = [];
 
+  // **段をまたぐぶんの待ち。** 前の段でこのホストを触っていれば、その完了からの経過を
+  // 差し引いた残りをここで待つ。これが無いと段の境目だけ間隔が空かない (実測 521ms)。
+  if (initial_delay_ms > 0) {
+    console.log(`[${host}] 前の段からの間隔を空ける: ${String(initial_delay_ms)}ms`);
+    await sleep(initial_delay_ms);
+  }
+
   for (const [index, url] of urls.entries()) {
-    // **間隔は完了の後。** 1 件目の前には置かない —— 前のページが無いので、空ける相手が居ない。
+    // **間隔は完了の後。** 1 件目の前は上で済ませてある。
     if (index > 0 && per_host_delay_ms > 0) await sleep(per_host_delay_ms);
 
     console.log(`[${host}] ${String(index + 1)}/${String(urls.length)} ${url}`);

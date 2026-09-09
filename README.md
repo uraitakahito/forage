@@ -80,6 +80,57 @@ JWT が dev ヘッダより優先されるのは意図された設計で、「�
 コメントアウトする。**両立させる仕組みは作っていない** —— それは identity の設計を
 変える話で、別件。
 
+## リンクを辿るクロール
+
+waggle の `POST /api/crawls` が種を受け取り、**1 段ずつ** flow に投げる。flow は
+`f/waggle/crawl_level` で、1 回の実行が 1 段。
+
+```
+plan_level   ホストで束ね、robots.txt を 1 ホスト 1 回引く
+  ↓
+for-each     ホストごとに並列（parallelism = host_parallelism）
+  crawl_host   1 ホスト内は逐次。完了 → 間隔 → 次
+  ↓
+report_level waggle に報告し、次の段があるかを受け取る
+```
+
+**繰り返すのは waggle。** この flow は 1 段で終わる。Windmill の while ループに繰り返しを
+持たせようとしたが、`stop_after_if` を付けた最小の flow が **643 回まで回り続けた**。
+相手のサーバに負荷をかけない仕組みを、暴走しうるループの上には載せない。上限の判定は
+waggle 側にあり、単体試験が付いている。
+
+### 礼儀はループの形で守る
+
+**Windmill CE の per-key concurrency limit は使えない。** 実装は `jobs_ee.rs` にあり、
+OSS ビルドは常に許可を返すスタブ（`update_concurrency_counter` が `Ok((true, None))`）。
+設定は保存も読み取りもされるので、**UI では効いて見えてゲートだけが素通しになる**。
+worker groups も CE には無い。
+
+代わりに使えるのは for-loop の `parallelism` —— これは `worker_flow.rs`（OSS）が
+`suspend` で実装していて確実に効く。だから:
+
+- **ホスト間** の同時数 = for-loop の `parallelism`
+- **ホスト内** は `crawl_host` が逐次に回し、完了の後に間隔を空ける
+- **段の境目** は waggle が「そのホストを最後に触り終えた時刻」を渡し、残りを待たせる
+
+最後の 1 つは後から足した。無いと段の境目だけ間隔が空かず、実測で 3000ms 設定に対して
+**521ms** まで詰まった。
+
+### 設定は変数から読む
+
+`crawl_host` と `report_level` は接続先を**引数では受けない**。Windmill は schema の
+既定値を **UI からの実行にしか埋めない**ので、webhook で起こすと引数が素通りになる
+（`browserhive_target` が undefined で「Channel target must be a string」になった）。
+
+```sh
+pnpm run windmill:waggle-token   # waggle_token / waggle_api_url / browserhive_target
+pnpm run windmill:push-proto     # browserhive の proto (resource)
+```
+
+proto が **resource** で変数でないのは、変数の上限（10,000〜20,000 バイトの間）を
+16,315 バイトの proto が超えるため。`pnpm run proto:check` が waggle の写しとの差分を見る
+—— 手で写した契約は黙って腐るので、番人を置く。
+
 ## いつ走るか
 
 `windmill/f/waggle/daily.schedule.yaml` —— **毎日 04:00 (Asia/Tokyo)**。

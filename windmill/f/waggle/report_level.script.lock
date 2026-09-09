@@ -1,0 +1,20 @@
+{
+  "dependencies": {
+    "windmill-client": "latest"
+  }
+}
+//bun.lock
+{
+  "lockfileVersion": 2,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "dependencies": {
+        "windmill-client": "latest",
+      },
+    },
+  },
+  "packages": {
+    "windmill-client": ["windmill-client@1.806.0", "", {}, "sha512-197UuOCR/dRbuNHETahjyW6KAIkvdfBnsYteOy3SVXByuMLtww8zCkBPpGlwG4hP/SoIlNIWFfDDZbemqJ1z7Q=="],
+  }
+}

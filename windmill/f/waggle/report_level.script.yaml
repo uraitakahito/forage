@@ -2,4 +2,65 @@ summary: 1 段を waggle に報告する
 description: |
   クロール 1 段を回す flow (f/waggle/crawl_level) の部品。
   単体で叩くものではない。
+lock: "!inline f/waggle/report_level.script.lock"
 kind: script
+schema:
+  properties:
+    crawl_id:
+      type: string
+      description: ""
+      default: null
+      originalType: string
+    depth:
+      type: number
+      description: ""
+      default: null
+    results:
+      type: array
+      description: ""
+      default: null
+      format: resource-page_result
+      items:
+        type: object
+        properties:
+          correlationId:
+            type: string
+            description: ""
+            originalType: string
+          finishedAt:
+            type: string
+            description: ""
+            originalType: string
+          linksLocation:
+            type: string
+            description: ""
+            originalType: string
+          skipReason:
+            type: string
+            description: ""
+            originalType: string
+          status:
+            type: string
+            description: ""
+            enum:
+              - captured
+              - failed
+              - skipped
+            originalType: enum
+          submittedAt:
+            type: string
+            description: ""
+            originalType: string
+          taskId:
+            type: string
+            description: ""
+            originalType: string
+          url:
+            type: string
+            description: ""
+            originalType: string
+      originalType: record[]
+  required:
+    - crawl_id
+    - depth
+    - results

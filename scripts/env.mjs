@@ -21,6 +21,7 @@ export const OPTIONAL_ENV = [
   "WAGGLE_SUBJECT",
   "WAGGLE_ORGANIZATIONS",
   "WAGGLE_TOKEN_EXPIRES_IN",
+  "WAGGLE_BROWSERHIVE_TARGET",
 ];
 
 /** 値を貼るまで空でいる変数。`guardEnv` の対象外。 */
