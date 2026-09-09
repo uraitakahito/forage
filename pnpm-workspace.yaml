@@ -5,10 +5,14 @@
 #             解決する Node のシムで、platform パッケージは optional dependency
 #             として postinstall と無関係に入る。だから false でも動く
 #             (waggle で実測済み —— あちらの pnpm-workspace.yaml に同じ記録がある)。
+#   protobufjs — @grpc/grpc-js 経由。postinstall は依存の版の書き方について stderr に
+#             助言を書くだけで、ファイルを 1 つも作らない (waggle が実物を読んで確認済み)。
 allowBuilds:
   esbuild: false
+  protobufjs: false
 
 # windmill-cli は server と同じ版を追う (ほぼ毎日出る)。新しさを理由に
 # 止められると、server の版を上げるたびに手が要る。
 minimumReleaseAgeExclude:
   - windmill-cli@1.806.0
+  - windmill-client@1.806.0

@@ -18,12 +18,18 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check": "pnpm run format:check && pnpm run check-env && pnpm run typecheck",
-    "typecheck": "tsc --noEmit --strict --target es2022 --module esnext --moduleResolution bundler --lib es2023,dom windmill/f/waggle/trigger_run.ts"
+    "typecheck": "tsc --noEmit --strict --target es2022 --module esnext --moduleResolution bundler --lib es2023,dom --skipLibCheck windmill/f/waggle/trigger_run.ts windmill/f/waggle/crawl_host.ts windmill/f/waggle/plan_level.ts windmill/f/waggle/report_level.ts",
+    "windmill:push-proto": "node --env-file-if-exists=.env scripts/push-proto.mjs",
+    "proto:check": "node scripts/proto-check.mjs"
   },
   "devDependencies": {
     "prettier": "3.6.2",
     "windmill-cli": "1.806.0",
     "typescript": "5.9.3",
-    "yaml": "2.8.1"
+    "yaml": "2.8.1",
+    "@grpc/grpc-js": "1.14.4",
+    "@grpc/proto-loader": "0.8.1",
+    "robots-parser": "3.0.1",
+    "windmill-client": "1.806.0"
   }
 }

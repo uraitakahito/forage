@@ -1,0 +1,5 @@
+summary: 1 段を waggle に報告する
+description: |
+  クロール 1 段を回す flow (f/waggle/crawl_level) の部品。
+  単体で叩くものではない。
+kind: script

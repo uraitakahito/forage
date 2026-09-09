@@ -1,3 +1,5 @@
 version: v2
 locks:
+  f/waggle/_shape_probe.flow+__flow_hash: 823a7723bac4970dbfaa01e4a9153f6d34bd8f0a0d78384ced90c02503c79564
+  f/waggle/_shape_probe.flow+c.inline_script.ts: 5c29c6745f0637db467439be56f5427bb062bed875618535f8a45a7e5c66b9ef
   f/waggle/trigger_run: eaefc95c0c8285d61d631182be8d6829ed72feaaa398dcc6d543271782963be3

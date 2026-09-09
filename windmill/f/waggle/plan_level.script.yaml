@@ -1,0 +1,5 @@
+summary: ホストで束ね、robots を見る
+description: |
+  クロール 1 段を回す flow (f/waggle/crawl_level) の部品。
+  単体で叩くものではない。
+kind: script

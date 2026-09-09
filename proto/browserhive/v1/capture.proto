@@ -1,0 +1,586 @@
+syntax = "proto3";
+
+package browserhive.v1;
+
+// BrowserHive の capture API。
+//
+// HTTP との対応で決めたことが 2 つある:
+//
+//   1. 202 を state に移した。HTTP では「受理 = 202」「取得は処理中なら 202、
+//      完了で 200」とステータスコードで進行を表していた。gRPC に 202 は無いので、
+//      GetCaptureResponse.state に持たせる。呼ぶ側は code ではなく state を見る。
+//   2. 失敗は gRPC の status code で返す。RFC 7807 の Problem は落とした。
+//      対応は request-mapper / handlers 側のコメントに書いてある。
+service CaptureService {
+  // capture を投入する。fire-and-forget —— 受理した時点で返り、実際の capture は
+  // worker pool が非同期に進める。結果は GetCapture で取る。
+  rpc SubmitCapture(SubmitCaptureRequest) returns (SubmitCaptureResponse);
+
+  // 投入した capture の現在。まだ終わっていなければ state が PENDING か PROCESSING で
+  // report は空。
+  rpc GetCapture(GetCaptureRequest) returns (GetCaptureResponse);
+
+  // 投入した capture が **いまどこにいるか**。GetCapture が「結果」を返すのに対し、
+  // こちらは「途中」を返す —— 結果は運ばない。
+  //
+  // GetCapture と違って PROCESSING を実際に返す。待っている側にとって
+  // 「キューで順番待ち」と「worker が抱えて走っている」は別の意味を持つため
+  // (前者は混雑、後者は取り込みそのものが遅い or 詰まっている)。
+  //
+  // GetServerStatus ではなくこちらを使うこと。あちらは全 worker とキュー全体を
+  // 返すので、待っている client が 2 秒ごとに引くと、キューの長さ × client 数で
+  // 効いてくる。
+  rpc GetCaptureProgress(GetCaptureProgressRequest) returns (GetCaptureProgressResponse);
+
+  // キューと coordinator の現在。**サーバ全体**の話で、タスク 1 件のことは言わない
+  // —— 投入した capture の現在は GetCapture のほう。名前に Server が入っているのは
+  // その境界を名前で言うためで、以前は GetStatus という名前だったものをこのコメント
+  // だけで補っていた。
+  rpc GetServerStatus(GetServerStatusRequest) returns (GetServerStatusResponse);
+}
+
+// -- enum ------------------------------------------------------------------
+
+// capture の結末。
+enum CaptureStatus {
+  CAPTURE_STATUS_UNSPECIFIED = 0;
+  CAPTURE_STATUS_SUCCESS = 1;
+  CAPTURE_STATUS_FAILED = 2;
+  CAPTURE_STATUS_TIMEOUT = 3;
+  CAPTURE_STATUS_HTTP_ERROR = 4;
+}
+
+// GetCapture の進行。
+// タスクがいまどこにいるか。GetCapture と GetCaptureProgress は **同じ瞬間に同じ値**
+// を返す —— どちらを呼んだかで意味が変わらないように。
+//
+// PENDING と PROCESSING を分けるのは、PENDING が「キューで待っている」という具体的な
+// 意味を持つ値だから。worker が既に抱えているタスクにそう答えるのは、粗いのではなく
+// 事実と違う。
+enum CaptureState {
+  CAPTURE_STATE_UNSPECIFIED = 0;
+  // キューで順番を待っている。
+  CAPTURE_STATE_PENDING = 1;
+  // worker が抱えて走らせている (リトライ中もここ)。
+  CAPTURE_STATE_PROCESSING = 2;
+  // 終わった。GetCapture なら report が付く。
+  CAPTURE_STATE_DONE = 3;
+}
+
+// 署名の検査 1 つぶんの結果。
+enum CheckOutcome {
+  CHECK_OUTCOME_UNSPECIFIED = 0;
+  CHECK_OUTCOME_OK = 1;
+  CHECK_OUTCOME_FAILED = 2;
+  CHECK_OUTCOME_SKIPPED = 3;
+}
+
+// worker の健康状態。
+enum WorkerHealth {
+  WORKER_HEALTH_UNSPECIFIED = 0;
+  WORKER_HEALTH_READY = 1;
+  WORKER_HEALTH_BUSY = 2;
+  WORKER_HEALTH_ERROR = 3;
+  WORKER_HEALTH_DISCONNECTED = 4;
+}
+
+// 失敗の分類。
+enum ErrorType {
+  ERROR_TYPE_UNSPECIFIED = 0;
+  ERROR_TYPE_HTTP = 1;
+  ERROR_TYPE_TIMEOUT = 2;
+  ERROR_TYPE_CONNECTION = 3;
+  ERROR_TYPE_SIGNING = 4;
+  ERROR_TYPE_INTERNAL = 5;
+}
+
+// この取り込みが、前のタスクの残留物を持ち越すかどうか。
+//
+// 0 番に ISOLATED を置いているのは意図的で、この repo の他の enum が守っている
+// `_UNSPECIFIED = 0` の慣習を破っている。proto3 のスカラ enum は「未設定」と「0」を
+// 区別できないので、0 を ISOLATED にすれば「指定しなかった」と「隔離を頼んだ」が
+// 同じものになる —— つまり **「指定しなかったのに持ち越されていた」が表現できなく
+// なる**。かつて cache と reset_state という 3 つのつまみでそれを表そうとして、
+// どれも origin ストレージを覆っておらず、www.yahoo.co.jp のフィードが
+// アーカイブに入らないことに 1 年近く誰も気づかなかった。
+enum SessionMode {
+  // 既定。使い捨ての BrowserContext で取り込む。cookie / HTTP キャッシュ /
+  // localStorage / sessionStorage / IndexedDB / Service Worker がすべて空から始まる。
+  SESSION_MODE_ISOLATED = 0;
+  // worker が持ち回る BrowserContext とタブを使う。ログイン後の連続取り込みなど、
+  // 持ち越すことが目的のときだけ選ぶ。同じ worker に載った **無関係なタスクにも
+  // 状態が漏れる** ことを承知の上で。後始末は一切しない。
+  SESSION_MODE_SHARED = 1;
+}
+
+// -- リクエスト側 ----------------------------------------------------------
+
+// 取得する形式。少なくとも 1 つは true でなければならない (handlers が検証する)。
+message CaptureFormats {
+  bool png = 1;
+  bool webp = 2;
+  bool html = 3;
+  bool links = 4;
+  bool mhtml = 5;
+  bool wacz = 6;
+}
+
+// 大きな固定オーバーレイを消す第 2 パスの閾値。省略時はサーバ既定。
+message DismissHeuristicSpec {
+  optional bool enabled = 1;
+  optional double min_viewport_coverage_ratio = 2;
+  optional int32 min_z_index = 3;
+}
+
+// banner / modal の除去を 1 回の capture だけ調整する。
+message DismissSpec {
+  optional bool use_defaults = 1;
+  repeated string extra_selectors = 2;
+  repeated string exclude_frameworks = 3;
+  optional DismissHeuristicSpec heuristic = 4;
+  optional bool fail_on_error = 5;
+}
+
+// viewport の指定。
+//
+// proto は値域を書けないので、範囲は server 側の境界 (request-limits.ts) が
+// 強制する。外れると INVALID_ARGUMENT。
+message Viewport {
+  // 1–7680 (8K の幅)。
+  int32 width = 1;
+  // 1–4320 (8K の高さ)。
+  int32 height = 2;
+}
+
+// 走らせるもの 1 つぶん。どれを走らせるかと、どう設定するかを 1 つにする。
+//
+// oneof にしているので、存在しない behavior は **綴れない**。かつては id が
+// ただの文字列で、`autoscrol` と打ち間違えても黙って通り、何も走らないまま
+// 取り込みが成功していた。
+message Behavior {
+  oneof kind {
+    AutoScroll autoscroll = 1;
+    AutoFetch autofetch = 2;
+    AutoPlay autoplay = 3;
+    Custom custom = 4;
+  }
+}
+
+// 省いた値はサーバ既定へ落ちる (optional なので presence がある)。既定値は
+// src/config/defaults.ts に在り、両者の一致は lint:behavior-roster が見る。
+
+// ページの全高までスクロールして、遅延読み込みを発火させる。
+message AutoScroll {
+  // 既定 40。
+  optional int32 max_steps = 1;
+  // 既定 250。
+  optional int32 step_delay_ms = 2;
+  // 既定 1000。
+  optional int32 idle_time_ms = 3;
+}
+
+// srcset の全候補と data-* の遅延属性を能動的に取りに行く。
+message AutoFetch {
+  // 既定 2000。
+  optional int32 max_urls = 1;
+}
+
+// <video> / <audio> をミュート再生して、その資源を取りに行く。
+message AutoPlay {
+  // 既定 1000。
+  optional int32 settle_ms = 1;
+}
+
+// client が持ち込む behavior。サーバが --allow-custom-behaviors で起動している
+// ときだけ効き、そうでなければ黙って無視される。
+message Custom {
+  // behavior report に出る識別子。
+  string id = 1;
+  // { static id, static isMatch, run(ctx) } を実装した JS のクラス式。
+  string source = 2;
+  // この behavior に渡す値。中身が任意の JS である以上、その設定も型では守れない
+  // —— JSON の逃げ道はここだけに閉じてある。
+  optional string options_json = 3;
+}
+
+// 走らせるものの列。message で包んでいるのは `optional` を付けるため: proto3 の
+// repeated には presence が無く、空と未指定を区別できない。
+message BehaviorList {
+  repeated Behavior items = 1;
+}
+
+// capture ごとの behavior の指定。
+message BehaviorSpec {
+  // 1 から 4 は builtins (repeated string) / options / site_behaviors /
+  // custom が使っていた。番号を再利用しない —— 旧 client が送る
+  // `builtins = ["autoscroll"]` は 1 番の length-delimited で、そのまま
+  // 別の型として読むと沈黙して化ける。予約しておけば未知として捨てられ、
+  // サーバ既定に落ちる。
+  reserved 1, 4;
+  reserved "builtins", "custom";
+
+  // 走らせるものを、走らせる順に。
+  //
+  //   省略 → サーバ既定 (--behaviors) をそのまま走らせる
+  //   items が空 → 1 つも走らせない
+  //   並び → 走らせるものを **書き切ったもの**
+  //
+  // 最後の 1 行が肝で、「既定の集合はそのままで設定だけ差し替える」はできない。
+  // かつては有効集合と設定が別々に届いたのでそれができ、同時に「集合を空に
+  // したつもりが既定に戻っていた」も起きていた。
+  optional BehaviorList behaviors = 5;
+
+  // 同梱の site behavior を対象にするか。省略するとサーバ既定 (出荷時は on)。
+  // `behaviors` と別なのは性質が違うから —— site behavior は host を見る
+  // isMatch() が門番で、client が並べるものではない。
+  optional bool site_behaviors = 3;
+}
+
+message SubmitCaptureRequest {
+  string url = 1;
+  // 成果物のファイル名に入る札。使える文字の制限は無い —— 名前を組むときに
+  // 区切りと衝突する文字は %XX へ逃がされるので、空白も `_` も `/` も日本語も
+  // そのまま渡せる。制限は **合計の長さ** だけで、
+  // `{taskId}_{correlationId}[_{labels}].result.json` が 255 UTF-8 バイトを
+  // 超える要求は境界が拒む。逃がされる文字と非 ASCII は 1 文字 3 バイト。
+  repeated string labels = 2;
+  // client 側の相関キー。labels と同じ規則でファイル名に入る。
+  // 送らなかった場合も名前の枠は残る (`{taskId}__{labels}` のように下線が並ぶ) ——
+  // 枠が固定されているので、名前から元の値を読み戻せる。
+  optional string correlation_id = 3;
+  CaptureFormats capture_formats = 4;
+  // 上流へ送る Accept-Language。印字可能な ASCII のみ、200 文字以下。
+  // 制御文字 (CR/LF/NUL) は header への注入になるので境界が拒む。
+  optional string accept_language = 5;
+  // wacz-auth の署名を求める。`capture_formats.wacz` と一緒のときだけ有効で、
+  // 他の組み合わせは INVALID_ARGUMENT で拒む。
+  optional bool signing = 6;
+
+  // true/false だけの指定と、細かい指定を区別する必要があるので oneof にする。
+  oneof dismiss_banners {
+    bool dismiss_banners_enabled = 7;
+    DismissSpec dismiss_banners_spec = 8;
+  }
+
+  // リクエスト単位の viewport。値域 (1–7680 × 1–4320) は server 側の境界
+  // (request-limits.ts) が強制する。
+  optional Viewport viewport = 9;
+  // 0–5000。ページ操作 1 つごとに挟む遅延で、headless の描画を眺めるためのもの。
+  // 待ちの手段ではないので上限が要る (1 操作ごとに効き、操作は十数回ある)。
+  //
+  // 操作ごとの timeout の予算の **外側** で数える —— わざと遅くした取り込みは
+  // 固まった取り込みではない。効くのはタスク全体の予算だけ。
+  optional int32 operation_delay_ms = 10;
+  optional bool trace = 11;
+  // 退役した番号。**再利用しない。**
+  //
+  // 13 と 14 は archive_mode (enum) と device_scale_factor が使っていた。旧 client が
+  // 送る archive_mode = ARCHIVE_MODE_MULTIPASS は 13 番の varint 2 で、そのまま
+  // repeated int32 として読むと device_pixel_ratios = [2] に化ける。「1 と 2 で
+  // 読み込め」が「DPR 2 だけで撮れ」になり、しかも誰も気づかない。
+  //
+  // 12・17・18 は cache と reset_state が使っていた。session に畳んで消したが、
+  // 番号は同じ理由で空けておく —— waggle は この .proto を vendoring していて
+  // (`proto:sync` が要る)、同期を忘れると古い番号のまま喋る。実際に一度起きている。
+  // 予約しておけば未知のフィールドとして捨てられ、サーバ既定 (= 隔離) に落ちる。
+  // 予約しなければ、同じ wire type の別フィールドとして黙って読まれる。
+  reserved 12, 13, 14, 17, 18;
+  reserved "cache", "archive_mode", "device_scale_factor",
+           "reset_state_enabled", "reset_state_spec";
+
+  // 読み込む device pixel ratio を、読み込む順に。各要素は 1–3 の整数で
+  // (2 が Retina、3 が現行の携帯端末の上)、同じ値を 2 度置くことはできない。
+  //
+  // 要素数がそのまま読み込みの回数になる。読み込むたびにバナー除去も behaviors も
+  // 走るので、所要時間も WARC のバイト数も要素数に比例して増える。
+  //
+  // 順序に意味がある: PNG / WebP は読み込みが全部終わってから 1 度だけ撮るので、
+  // **最後の要素**の倍率になる。[2, 1] と書けば画像は 1x で残る。
+  //
+  // 空ならサーバ既定 (--device-pixel-ratios)。proto3 の repeated は「空」と
+  // 「未指定」を区別できないので、空は「指定なし」として扱うほかない。
+  repeated int32 device_pixel_ratios = 20;
+  optional bool full_page = 15;
+  optional BehaviorSpec behaviors = 16;
+
+  // 前のタスクの残留物を持ち越すか。省略 = ISOLATED (使い捨ての context)。
+  SessionMode session = 21;
+
+  // この取り込みに限って本文の上限を締める。省略時はサーバ既定 (GetServerStatus の
+  // limits.max_response_bytes)。
+  //
+  // 動くのは締める方向だけで、既定より大きい値は既定に丸める。上限は資源を守る
+  // ために運用者が置くもので、呼ぶ側が上げられるならそれは上限ではない。拒否では
+  // なく丸めにしているのは、呼ぶ側が配備の既定を知らずに要求できるようにするため
+  // —— 効いた値は archive の settings.limits.max_response_bytes に残るので、
+  // 何が起きたかは後から読める。
+  optional int64 max_response_bytes = 19;
+}
+
+message GetCaptureRequest {
+  string task_id = 1;
+}
+
+message GetCaptureProgressRequest {
+  string task_id = 1;
+}
+
+message GetServerStatusRequest {
+  // 返す pending task の上限。0–200 で、省略時は 50。proto は値域を持てないので、
+  // 既定を当てるのも範囲の検査も handler の仕事。
+  optional int32 pending_limit = 1;
+}
+
+// -- 結果 ------------------------------------------------------------------
+
+message SubmitCaptureResponse {
+  // 失敗は status code で返るので、ここに来るのは受理されたときだけ。
+  bool accepted = 1;
+  string task_id = 2;
+  optional string correlation_id = 3;
+}
+
+// 成果物の置き場所 (s3://…)。取得しなかった形式は空のまま。
+message CaptureArtifacts {
+  optional string png = 1;
+  optional string webp = 2;
+  optional string html = 3;
+  optional string links = 4;
+  optional string mhtml = 5;
+  optional string wacz = 6;
+}
+
+message WaczStats {
+  int32 total_recorded = 1;
+  int32 total_blocked = 2;
+  int32 total_skipped_content_type = 3;
+  int32 total_truncated_too_large = 4;
+  int32 total_truncated_task_cap = 5;
+  int32 total_failed = 6;
+  int32 total_incomplete = 7;
+  int64 total_body_bytes = 8;
+}
+
+message WaczSignatureChecks {
+  CheckOutcome signature = 1;
+  CheckOutcome chain = 2;
+  CheckOutcome domain = 3;
+  CheckOutcome timestamp = 4;
+}
+
+message WaczSignature {
+  bool signed = 1;
+  optional string reason = 2;
+  optional string domain = 3;
+  optional WaczSignatureChecks checks = 4;
+}
+
+message WaczCompleteness {
+  repeated string bodyless_urls = 1;
+  repeated string truncated_urls = 2;
+  bool complete = 3;
+}
+
+message CaptureErrorDetails {
+  ErrorType type = 1;
+  string message = 2;
+  optional int32 http_status_code = 3;
+  optional string http_status_text = 4;
+  optional int32 timeout_ms = 5;
+}
+
+message CaptureResultReport {
+  string task_id = 1;
+  optional string correlation_id = 2;
+  string url = 3;
+  repeated string labels = 4;
+  CaptureStatus status = 5;
+  optional int32 http_status_code = 6;
+  string timestamp = 7;
+  int32 capture_processing_time_ms = 8;
+  int32 retry_count = 9;
+  int32 worker_index = 10;
+  CaptureArtifacts artifacts = 11;
+  optional WaczStats wacz_stats = 12;
+  optional WaczCompleteness completeness = 13;
+  optional WaczSignature signature = 14;
+  optional CaptureErrorDetails error_details = 15;
+}
+
+// GetCapture の答え。state と report は独立していない —— report が入るのは state が
+// DONE のときだけで、その対応を protobuf で書く手段が無いため、型ではなく約束として
+// 守られている。
+message GetCaptureResponse {
+  CaptureState state = 1;
+
+  // 触る前に `state == DONE` を確かめること。`state != PENDING` では足りない ——
+  // PENDING と PROCESSING はどちらも「まだ終わっていない」側で、**この RPC は
+  // その両方を返す**。
+  //
+  // 確かめずに読むと status = 0 (CAPTURE_STATUS_UNSPECIFIED) を掴む。言語によっては
+  // 落ちもしない。そして「SUCCESS ではない」は「失敗した」と区別が付かないので、
+  // まだ走っている取り込みが失敗として台帳に載る。
+  optional CaptureResultReport report = 2;
+}
+
+// 取り込みが **終わる前** の様子。どのフィールドが入るかは state で決まる。
+message CaptureProgress {
+  // キューに入ってからの時間。requeue が enqueued_at を保つので、リトライを
+  // またいでも「本当に待っている時間」になる。
+  int32 queued_ms = 1;
+
+  // 何度目の試行か。0 のまま増えなければ順調。増えていれば、前の試行が
+  // 持ち時間を使い切った —— これが「詰まっている」の信号。あと何回やり直せるかは
+  // attempts_remaining が持つ (上限そのものは wire に出ていない)。
+  int32 retry_count = 2;
+
+  // PROCESSING のときだけ。いまの試行が始まってからの経過。どこまで来たかは
+  // これ単体では分からない —— 1 回の試行に与えられている時間は wire に出ていない。
+  // 「あとどれだけか」は worst_case_remaining_ms を見ること。
+  optional int32 elapsed_ms = 3;
+  optional int32 worker_index = 4;
+
+  // PENDING のときだけ。0 が先頭。切り詰めない探索で数えるので、キューが
+  // 深くても正しい (GetServerStatus の pending_tasks は pending_limit で
+  // 切られるので、そこからは数えられない)。
+  optional int32 queue_position = 5;
+
+  // PROCESSING のときだけ。許される限りすべてが悪く進んでも、これだけ待てば
+  // 終端 (DONE) に至る。「いまの試行の残り」+「残りの試行 × 1 回ぶんの持ち時間」。
+  //
+  // **見積もりではない** —— server が自分に課している上限そのもの。これを超えても
+  // DONE が来ないなら、遅い取り込みではなく server の異常。client 側に
+  // 「だいたいこれくらい」という定数を置く必要は無くなる。
+  //
+  // ただし厳密な上界ではない: 上限が掛かるのは取り込み処理の部分で、dequeue から
+  // 成果物のアップロードまでの全体ではない。実測では試行 1 回あたり 300ms 弱を
+  // 超過する。猶予を詰めすぎると、正常な取り込みを異常と判定する。
+  //
+  // PENDING には付かない。順番待ちの長さは他人の仕事の量で決まり、server は
+  // そこに上限を課していない。数字を入れれば、それは予報になる。
+  optional int32 worst_case_remaining_ms = 6;
+
+  // PROCESSING のときだけ。あと何回やり直せるか。0 なら、この試行が最後。
+  //
+  // retry_count からは導けない —— 上限 (max_retry_count) は wire に出ていない。
+  optional int32 attempts_remaining = 7;
+}
+
+message GetCaptureProgressResponse {
+  CaptureState state = 1;
+
+  // state != DONE のときに入る。DONE なら report を GetCapture で取ること
+  // —— こちらは結果を運ばない。
+  optional CaptureProgress progress = 2;
+}
+
+// -- status ----------------------------------------------------------------
+
+message ErrorTaskInfo {
+  string task_id = 1;
+  string url = 2;
+  repeated string labels = 3;
+}
+
+message ErrorRecord {
+  ErrorType type = 1;
+  string message = 2;
+  optional int32 http_status_code = 3;
+  optional string http_status_text = 4;
+  optional int32 timeout_ms = 5;
+  string timestamp = 6;
+  optional ErrorTaskInfo task = 7;
+}
+
+message BrowserOptions {
+  string browser_url = 1;
+}
+
+message CurrentTask {
+  string task_id = 1;
+  string url = 2;
+  repeated string labels = 3;
+  optional string correlation_id = 4;
+  string started_at = 5;
+  int32 elapsed_ms = 6;
+  int32 retry_count = 7;
+}
+
+message WorkerInfo {
+  int32 index = 1;
+  BrowserOptions browser_options = 2;
+  WorkerHealth health = 3;
+  int32 processed_count = 4;
+  int32 error_count = 5;
+  repeated ErrorRecord error_history = 6;
+  optional CurrentTask current_task = 7;
+}
+
+message PendingTask {
+  string task_id = 1;
+  string url = 2;
+  repeated string labels = 3;
+  optional string correlation_id = 4;
+  string enqueued_at = 5;
+  int32 queued_ms = 6;
+  int32 retry_count = 7;
+}
+
+message ProcessingTask {
+  string task_id = 1;
+  string url = 2;
+  repeated string labels = 3;
+  optional string correlation_id = 4;
+  string enqueued_at = 5;
+  int32 queued_ms = 6;
+  int32 retry_count = 7;
+  int32 worker_index = 8;
+  string started_at = 9;
+  int32 elapsed_ms = 10;
+}
+
+message QueueSnapshot {
+  repeated PendingTask pending_tasks = 1;
+  repeated ProcessingTask processing_tasks = 2;
+}
+
+message BuildInfo {
+  string version = 1;
+  string revision = 2;
+  string build_time = 3;
+}
+
+/**
+ * サーバが強いる境界。リクエストでは変えられないもの。
+ *
+ * 投げる前に「この大きさは切り詰められる」と分かるために在る。archive 側の
+ * settings.limits と同じ値だが、答える問いが違う —— あちらは「何が起きたか」、
+ * こちらは「これから何が起きるか」。
+ *
+ * 載せるのは境界だけ。viewport や devicePixelRatios はリクエストで上書きできるので
+ * 境界ではなく、ここには来ない。設定の置き場にし始めたら、それは status とは
+ * 別の RPC に切る合図。
+ */
+message ServerLimits {
+  /** 1 レスポンスの本文の上限。超えた本文は落とし、切り詰めとして記録する。 */
+  int64 max_response_bytes = 1;
+  /** 1 タスクが記録する本文の合計の上限。 */
+  int64 max_task_bytes = 2;
+  /** 1 タスクが同時に抱える保留リクエストの上限。 */
+  int32 max_pending_requests = 3;
+}
+
+message GetServerStatusResponse {
+  int32 pending = 1;
+  int32 processing = 2;
+  int32 succeeded = 3;
+  int32 failed = 4;
+  int32 operational_workers = 5;
+  int32 total_workers = 6;
+  bool is_running = 7;
+  bool is_degraded = 8;
+  repeated WorkerInfo workers = 9;
+  QueueSnapshot queue = 10;
+  BuildInfo build = 11;
+  ServerLimits limits = 12;
+}
