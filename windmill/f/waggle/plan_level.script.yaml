@@ -2,13 +2,13 @@ summary: ホストで束ね、robots を見る
 description: |
   クロール 1 段を回す flow (f/waggle/crawl_level) の部品。
   単体で叩くものではない。
-lock: "!inline f/waggle/plan_level.script.lock"
+lock: '!inline f/waggle/plan_level.script.lock'
 kind: script
 schema:
   properties:
     candidates:
       type: array
-      description: ""
+      description: ''
       default: null
       format: resource-candidate
       items:
@@ -16,24 +16,24 @@ schema:
         properties:
           host:
             type: string
-            description: ""
+            description: ''
             originalType: string
           lastFinishedAt:
             type: string
-            description: ""
+            description: ''
             originalType: string
           url:
             type: string
-            description: ""
+            description: ''
             originalType: string
       originalType: record[]
     per_host_delay_ms:
       type: number
-      description: ""
+      description: ''
       default: null
     respect_robots:
       type: boolean
-      description: ""
+      description: ''
       default: true
   required:
     - candidates
