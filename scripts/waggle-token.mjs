@@ -39,6 +39,16 @@ const URL_PATH = "u/admin/waggle_api_url";
  * 素通りになる (実測)。だから設定は変数に置く。
  */
 const TARGET_PATH = "u/admin/browserhive_target";
+/**
+ * browserhive の gRPC を TLS にするときの CA 証明書 (PEM)。
+ *
+ * **空文字は「TLS を使わない」**。変数そのものを作らない選択にしなかったのは、
+ * `getVariable` が「無い」で落ちるのと「空だった」を script 側で区別すると、
+ * 読み取りの失敗が黙って平文に落ちる経路になるから。空で置いておけば、
+ * TLS のつもりの配備が平文で喋ることはない。開発のスタックは平文。
+ */
+const TLS_CA_PATH = "u/admin/browserhive_tls_ca";
+const TLS_CA_PEM = optional("WAGGLE_BROWSERHIVE_TLS_CA_PEM", "");
 
 const mintToken = async () => {
   const res = await fetch(`${ISSUER}/token`, {
@@ -104,11 +114,13 @@ const main = async () => {
   const tokenAction = await upsertVariable(windmillToken, TOKEN_PATH, jwt, true);
   const urlAction = await upsertVariable(windmillToken, URL_PATH, waggleApiUrl(), false);
   const targetAction = await upsertVariable(windmillToken, TARGET_PATH, BROWSERHIVE_TARGET, false);
+  const tlsAction = await upsertVariable(windmillToken, TLS_CA_PATH, TLS_CA_PEM, false);
 
   process.stderr.write(
     `${TOKEN_PATH} を${tokenAction} (sub=${SUBJECT} orgs=${ORGANIZATIONS.join(",")} exp=${EXPIRES_IN})\n` +
       `${URL_PATH} を${urlAction} (${waggleApiUrl()})\n` +
-      `${TARGET_PATH} を${targetAction} (${BROWSERHIVE_TARGET})\n\n` +
+      `${TARGET_PATH} を${targetAction} (${BROWSERHIVE_TARGET})\n` +
+      `${TLS_CA_PATH} を${tlsAction} (${TLS_CA_PEM === "" ? "空 = 平文" : "CA あり"})\n\n` +
       `付与を忘れずに:  cd ../waggle && pnpm run fga:grant submitter ${SUBJECT} ${ORGANIZATIONS[0] ?? "acme"}\n`,
   );
 };

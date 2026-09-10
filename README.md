@@ -1,7 +1,7 @@
 # forage
 
 Starts [waggle](https://github.com/uraitakahito/waggle)'s captures **on time**.
-waggle exposes `POST /api/runs` so that "when to run" can live outside it —
+waggle exposes `POST /api/crawls` so that "when to run" can live outside it —
 forage is that outside: one [Windmill](https://www.windmill.dev/) instance, a
 cron expression, and a script that calls the endpoint. It also drives the
 link-following crawl, one level per flow execution.

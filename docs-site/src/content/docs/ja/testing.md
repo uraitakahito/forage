@@ -1,10 +1,10 @@
 ---
 title: 試験
-description: 何も要らない単体 44 件と、スタック一式が要る e2e 1 件。なぜ両方要るのか
+description: 何も要らない単体 61 件と、スタック一式が要る e2e 1 件。なぜ両方要るのか
 ---
 
 ```sh
-pnpm run test        # 単体 44 件。スタック不要、数秒
+pnpm run test        # 単体 61 件。スタック不要、数秒
 pnpm run test:e2e    # e2e 1 件。スタックが要る
 pnpm run check       # format / env / typecheck / 単体
 ```
@@ -44,7 +44,9 @@ pnpm run check       # format / env / typecheck / 単体
 ## e2e は本物のクロールを 1 本起こす
 
 1 件、約 40 秒。Windmill の実行の口ではなく **waggle の API** を通す —— 目的が
-「waggle が実際に送る引数」を運ぶことだから（5 つ。`respect_robots` は入っていない）。
+「waggle が実際に送る引数」を運ぶことだから: `crawl_id` / `depth` / `frontier` /
+`per_host_delay_ms` / `host_parallelism` / `capture_formats` / `signing` の 7 つで、
+**`respect_robots` は入っていない**。
 
 見ているのは 3 つ:
 
@@ -61,10 +63,10 @@ e2e のほうは meadow が禁じられたページを受け取ったことを�
 
 ## 日次のループは推測しない
 
-`trigger_run.ts` は**日次の実行の成否を決めている唯一の場所**で、e2e はそこを
-触らない（あちらはクロールの経路）。以前は覆いが 1 つも無かった ——
-`POLL_INTERVAL_MS` が 15 秒の定数で、しかも sleep が最初の問い合わせより**前**に
-入るため、試験 1 本が 15 秒かかったから。
+`trigger_crawl.ts` は**日次の取り込みの成否を決めている唯一の場所**で、e2e は
+そこを触らない —— あちらは自分で種を waggle に投げるので、この script を通らない。
+以前は覆いが 1 つも無かった —— `POLL_INTERVAL_MS` が 15 秒の定数で、しかも sleep が
+最初の問い合わせより**前**に入るため、試験 1 本が 15 秒かかったから。
 
 いまは `poll_interval_ms` を引数で受ける。`crawl_host.ts` に対してやったのと同じ
 3 行で、実タイマーの ms スケールで回せる。
@@ -72,19 +74,21 @@ e2e のほうは meadow が禁じられたページを受け取ったことを�
 知っておくべき砦はこれ:
 
 ```ts
-if (run.state !== "succeeded") throw new Error(`知らない状態「…」`);
+if (crawl.state !== "succeeded") throw new Error(`知らない状態「…」`);
 ```
 
 これが無いと、script が知らない状態は **2 つの比較を素通りして** `succeeded` を
-件数 0 で返す。**名前がずれたときの見え方がまさにこれ** —— そして実際に起きた:
+件数 0 で返す。**名前がずれたときの見え方がまさにこれ** —— そして実際に一度起きた:
 waggle の `runs.status` が `runs.state` になったとき、改名前の script を改名後の
 API に当てて、ここが発火することを確かめた。走らなかった実行を緑と報告する代わりに、
-原因の見当まで添えて落ちた。
+原因の見当まで添えて落ちた。その後 `runs` は `crawls` に畳まれたが、砦はそのまま
+移り、いまは `crawl.state` を見ている。
 
 線の形を守っているものは他に無い —— waggle 側に response schema は無く、こちらは
-`as RunState` の素のキャスト。
+`as CrawlState` の素のキャスト。
 
 ## 覆えていないもの
 
-e2e が回すのはクロール 1 本で、**実行**（`capture_targets` の一括）は起こさない。
-`POST /api/runs` を通る waggle 側の経路は、両側の単体試験でしか触れていない。
+e2e はクロールの種を URL で渡すので、**`fromTargets`**（`capture_targets` を種に
+する道 —— 日次が通るのはこちら）はどこでも回っていない。waggle 側のその経路は、
+両側の単体試験でしか触れていない。

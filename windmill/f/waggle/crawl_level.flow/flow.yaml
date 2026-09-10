@@ -58,6 +58,15 @@ value:
                 initial_delay_ms:
                   type: javascript
                   expr: flow_input.iter.value.initialDelayMs
+                capture_formats:
+                  type: javascript
+                  expr: flow_input.capture_formats
+                signing:
+                  type: javascript
+                  expr: flow_input.signing
+                artifact_sink:
+                  type: javascript
+                  expr: flow_input.artifact_sink
         iterator:
           type: javascript
           expr: results.plan.groups
@@ -93,6 +102,24 @@ value:
           crawl_id:
             type: javascript
             expr: flow_input.crawl_id
+  # **段が落ちたときに走る。** flow が途中で死ぬと report まで辿り着かないので、
+  # waggle は何も知らされず `crawls` の行が `running` のまま残る —— 部分 unique index が
+  # 以後のクロールを全部塞ぐ。実測で踏んだ (BrowserHive を止めたクロールが永久に走行中)。
+  #
+  # `error` は Windmill が failure_module にだけ渡す特別な入力。
+  failure_module:
+    id: failure
+    value:
+      type: script
+      path: f/waggle/fail_crawl
+      input_transforms:
+        crawl_id:
+          type: javascript
+          expr: flow_input.crawl_id
+        error:
+          type: javascript
+          expr: error
+
 schema:
   $schema: https://json-schema.org/draft/2020-12/schema
   type: object
@@ -103,6 +130,8 @@ schema:
     - per_host_delay_ms
     - host_parallelism
     - respect_robots
+    - capture_formats
+    - signing
   properties:
     crawl_id:
       type: string
@@ -133,7 +162,38 @@ schema:
       type: boolean
       description: robots.txt を尊重するか
       default: true
-  # waggle が送るのは crawl_id / depth / frontier / 間隔 / 並列度の 5 つだけ。
+    capture_formats:
+      type: object
+      description: 取り込む形式。waggle が決めて必ず送る（既定値には頼れない）
+      properties:
+        png:
+          type: boolean
+        webp:
+          type: boolean
+        html:
+          type: boolean
+        links:
+          type: boolean
+        mhtml:
+          type: boolean
+        wacz:
+          type: boolean
+    signing:
+      type: boolean
+      description: WACZ に署名するか。waggle が決めて必ず送る
+    artifact_sink:
+      # 成果物の送り先。**必須にしない** —— 省けば BrowserHive は従来どおり自前の
+      # 保管庫へ書くので、2 つの経路が同時に生きる。切り替えを 1 本のクロールから
+      # 始められるのが、この省略可能性の狙い。
+      type: object
+      description: 成果物の押し出し先。waggle が crawl ごとに 1 回きりの口を発行する
+      properties:
+        url:
+          type: string
+        token:
+          type: string
+  # waggle が送るのは crawl_id / depth / frontier / 間隔 / 並列度 /
+  # capture_formats / signing の 7 つだけ。
   # waggle は自分がコンテナからどう見えるかを知らないし、issuer の鍵も持っていない。
   #
   # **下の default は webhook からの実行では埋まらない。** 実測: 必須の引数だけ渡して
@@ -148,3 +208,7 @@ schema:
     - crawl_id
     - depth
     - frontier
+    # **形式と署名は必須。** 既定値は webhook 起動では埋まらないので、
+    # 省略できる形にすると「渡し忘れ」が黙って別の形式で走ることになる。
+    - capture_formats
+    - signing

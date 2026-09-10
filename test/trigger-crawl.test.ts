@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { main } from "../windmill/f/waggle/trigger_run.js";
+import { main } from "../windmill/f/waggle/trigger_crawl.js";
 
 /**
  * 日次の引き金。**import が 1 つも無く、接続先もトークンも引数で受ける** ——
@@ -44,20 +44,20 @@ afterEach(() => {
 });
 
 describe("起こし方", () => {
-  it("limit を渡さなければ本文は空のまま", async () => {
-    // `{ limit: undefined }` にすると JSON.stringify が鍵ごと落とすので同じに見えるが、
-    // 明示的に空を送ることで「上限なし」を waggle 側の既定に委ねている。
+  it("limit を渡さなければ fromTargets は空のまま", async () => {
+    // 空の `fromTargets` が「登録済みの一覧を全部」。上限は waggle 側の既定に委ねる。
+    // **`{}` だけを送ってはいけない** —— waggle は「どちらか一方」を要求するので 400 になる。
     const seen = responding(409, {});
     await main("http://waggle:7070", "tok");
 
-    expect(seen[0]!.url).toBe("http://waggle:7070/api/runs");
-    expect(seen[0]!.init.body).toBe("{}");
+    expect(seen[0]!.url).toBe("http://waggle:7070/api/crawls");
+    expect(JSON.parse(String(seen[0]!.init.body))).toEqual({ fromTargets: {} });
   });
 
   it("limit を渡せば載せる", async () => {
     const seen = responding(409, {});
     await main("http://waggle:7070", "tok", 5);
-    expect(JSON.parse(String(seen[0]!.init.body))).toEqual({ limit: 5 });
+    expect(JSON.parse(String(seen[0]!.init.body))).toEqual({ fromTargets: { limit: 5 } });
   });
 
   it("トークンを Bearer で送る", async () => {
@@ -101,23 +101,23 @@ describe("失敗したときの言い分", () => {
 
   it("202 でも 409 でもない成功系は失敗として扱う", async () => {
     // 200 は「起こした」を意味しない。202 だけが受理。
-    responding(200, { runId: "r1" });
+    responding(200, { crawlId: "c1" });
     await expect(main("http://waggle:7070", "tok")).rejects.toThrow(/200/);
   });
 });
 
 describe("完了を待つ", () => {
   /** POST は 202、その後の GET は与えた並びを順に返す。最後のものが以後ずっと返る。 */
-  const polling = (runs: unknown[]) => {
+  const polling = (crawls: unknown[]) => {
     let n = 0;
     vi.stubGlobal(
       "fetch",
       vi.fn(() => {
         if (n === 0) {
           n += 1;
-          return Promise.resolve(reply(202, { runId: "r1" }));
+          return Promise.resolve(reply(202, { crawlId: "c1" }));
         }
-        const body = runs[Math.min(n - 1, runs.length - 1)];
+        const body = crawls[Math.min(n - 1, crawls.length - 1)];
         n += 1;
         return Promise.resolve(reply(200, body));
       }),
@@ -127,10 +127,10 @@ describe("完了を待つ", () => {
   it("running の間は問い合わせ続ける", async () => {
     // **これが無いと走行中を「終わった」と読む。** counts は 0 のまま succeeded で
     // 返り、日次の実行は毎晩緑になる。
-    polling([{ state: "running" }, { state: "running" }, { state: "succeeded", submitted: 3 }]);
+    polling([{ state: "running" }, { state: "running" }, { state: "succeeded", pagesCaptured: 3 }]);
     await expect(main("http://w", "tok", undefined, 60_000, 5)).resolves.toMatchObject({
       outcome: "succeeded",
-      submitted: 3,
+      pagesCaptured: 3,
     });
   });
 
@@ -148,24 +148,34 @@ describe("完了を待つ", () => {
   });
 
   it("知らない状態を succeeded に落とさない", async () => {
-    // **改名の砦。** waggle が field 名を変えると `run.status` が undefined になり、
+    // **改名の砦。** waggle が field 名を変えると `crawl.state` が undefined になり、
     // running でも failed でもないので、砦が無ければ succeeded で返ってしまう。
     // waggle が古い `status` を返してきた場合。実測でも、改名前の script を
     // 改名後の waggle に当てて、ここが発火することを確かめてある。
-    polling([{ status: "succeeded", submitted: 3 }]);
+    polling([{ status: "succeeded", pagesCaptured: 3 }]);
     await expect(main("http://w", "tok", undefined, 60_000, 5)).rejects.toThrow(
       /知らない状態「undefined」/,
     );
   });
 
   it("件数が null なら 0 として返す", async () => {
-    polling([{ state: "succeeded", submitted: null, accepted: null, rejected: null }]);
+    polling([{ state: "succeeded", pagesDiscovered: null, pagesCaptured: null, stopReason: null }]);
     await expect(main("http://w", "tok", undefined, 60_000, 5)).resolves.toEqual({
       outcome: "succeeded",
-      runId: "r1",
-      submitted: 0,
-      accepted: 0,
-      rejected: 0,
+      crawlId: "c1",
+      pagesDiscovered: 0,
+      pagesCaptured: 0,
+      stopReason: null,
+    });
+  });
+
+  it("max_depth で終わっても成功として扱う", async () => {
+    // **対象一覧からの取り込みは常にこれ。** 深さ 0 なので「次の段は無い」が
+    // 「深さの上限に当たった」として記録される。異常ではないので緑で返す。
+    polling([{ state: "succeeded", pagesCaptured: 2, stopReason: "max_depth" }]);
+    await expect(main("http://w", "tok", undefined, 60_000, 5)).resolves.toMatchObject({
+      outcome: "succeeded",
+      stopReason: "max_depth",
     });
   });
 
@@ -177,7 +187,7 @@ describe("完了を待つ", () => {
       vi.fn(() => {
         n += 1;
         return Promise.resolve(
-          n === 1 ? reply(202, { runId: "r1" }) : reply(500, { error: "boom" }),
+          n === 1 ? reply(202, { crawlId: "c1" }) : reply(500, { error: "boom" }),
         );
       }),
     );

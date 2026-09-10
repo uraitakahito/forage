@@ -41,6 +41,32 @@ type CaptureStatus =
   | "CAPTURE_STATUS_TIMEOUT"
   | "CAPTURE_STATUS_HTTP_ERROR";
 
+/**
+ * 何をどう取り込むか。**waggle が決めて、dispatch の payload で渡す。**
+ *
+ * ここに既定値を置かないのは意図的 —— flow の schema の既定値は webhook 起動では
+ * 埋まらないので、「渡し忘れ」を既定値が隠すと、`png` を頼んだ配備が黙って
+ * `wacz` だけを取り続ける。渡されなければ落ちるのが正しい。
+ */
+export interface CaptureSettings {
+  formats: {
+    png: boolean;
+    webp: boolean;
+    html: boolean;
+    links: boolean;
+    mhtml: boolean;
+    wacz: boolean;
+  };
+  signing: boolean;
+  /**
+   * 成果物の押し出し先。**在れば BrowserHive は自前の保管庫へ書かない。**
+   *
+   * waggle が crawl ごとに 1 回きりで発行するので、ここには「運んできたもの」しか
+   * 入らない —— この層は中身を見ないし、作りもしない。
+   */
+  artifactSink?: { url: string; token: string };
+}
+
 export interface PageResult {
   url: string;
   status: "captured" | "failed" | "skipped";
@@ -65,7 +91,39 @@ export interface PageResult {
 const CAPTURE_TIMEOUT_MS = 15 * 60 * 1000;
 const POLL_INTERVAL_MS = 3000;
 
+/**
+ * gRPC の status code。**数値は wire protocol の一部**なので変わらない
+ * (`@grpc/grpc-js` の `status` と同じ値)。
+ *
+ * ここで名前を付けているのは、`@grpc/grpc-js` を module の先頭で import すると
+ * この file の試験に gRPC が要るようになるから —— `captureHost` を偽の client で
+ * 回せることがこの分割の取り柄で、それを潰したくない。
+ */
+const GRPC_NOT_FOUND = 5;
+const GRPC_UNAVAILABLE = 14;
+
+/** waggle が manifest から拾い直す合図。この綴りは `waggle/src/api/crawls.ts` と対。 */
+export const NOT_FOUND_REASON = "capture-not-found";
+
+/**
+ * BrowserHive に届かない。**1 ページの失敗として扱ってはいけない。**
+ *
+ * 潰すと、server が落ちているクロールが「全ページ失敗のクロール」として
+ * **成功で完了する**。取れなかったのはページのせいではないのに、台帳には
+ * 「このページは取れない」と残り、しかもリンクが辿れないので木がそこで切れる。
+ *
+ * flow は `skip_failures: false` なので、ここで throw すれば段ごと失敗し、
+ * waggle が `crawls` を `failed` で締める。
+ */
+export class ServerUnavailable extends Error {}
+
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** gRPC の誤りから status code を取り出す。code を持たないものは `undefined`。 */
+const grpcStatus = (err: unknown): number | undefined =>
+  typeof err === "object" && err !== null && typeof (err as { code?: unknown }).code === "number"
+    ? (err as { code: number }).code
+    : undefined;
 
 /**
  * proto を実行時に読み、client を 1 つ作る。
@@ -74,7 +132,15 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
  * proto は 586 行で import も無い自己完結なので、`proto-loader` で足りる。
  * 中身は `scripts/push-proto.mjs` が resource に入れている。
  */
-const connect = async (target: string): Promise<Record<string, unknown>> => {
+/**
+ * gRPC の宛先は URL ではなく `host:port`。それでも scheme を書く設定 —— 癖で、
+ * あるいは HTTP 転送の時代に書かれたものから —— に対しては、`http` という名前の
+ * host へ繋ぎに行くのではなく scheme を落とす。waggle の `rpc/client.ts` と同じ規則。
+ */
+export const toTarget = (server: string): string =>
+  server.replace(/^[a-z]+:\/\//, "").replace(/\/+$/, "");
+
+const connect = async (target: string, caPem: string): Promise<Record<string, unknown>> => {
   const [protoLoader, grpc, fs, path, os] = await Promise.all([
     import("@grpc/proto-loader"),
     import("@grpc/grpc-js"),
@@ -102,7 +168,14 @@ const connect = async (target: string): Promise<Record<string, unknown>> => {
   const pkg = grpc.loadPackageDefinition(definition) as unknown as {
     browserhive: { v1: { CaptureService: new (t: string, c: unknown) => Record<string, unknown> } };
   };
-  return new pkg.browserhive.v1.CaptureService(target, grpc.credentials.createInsecure());
+  // **CA が名指しされているときだけ TLS。** 「システムの root で TLS」は用意しない ——
+  // BrowserHive の TLS は私設 CA を想定したもので、公開の証明書が要るということは
+  // server が公開インターネット上に在るという意味になるが、そうではない。
+  const creds =
+    caPem === ""
+      ? grpc.credentials.createInsecure()
+      : grpc.credentials.createSsl(Buffer.from(caPem, "utf8"));
+  return new pkg.browserhive.v1.CaptureService(toTarget(target), creds);
 };
 
 const call = <T>(client: Record<string, unknown>, method: string, request: unknown): Promise<T> =>
@@ -113,6 +186,29 @@ const call = <T>(client: Record<string, unknown>, method: string, request: unkno
         err ? reject(err instanceof Error ? err : new Error(String(err))) : resolve(res),
     );
   });
+
+/**
+ * `call` に「server が居ない」の見分けを足したもの。
+ *
+ * **`UNAVAILABLE` だけは種類が違う。** 他の誤りは「この取り込みは駄目だった」だが、
+ * これは「相手が居ない」なので、次のページを試しても同じ答えしか返らない。
+ */
+const callOrFail = async <T>(
+  client: Record<string, unknown>,
+  method: string,
+  request: unknown,
+): Promise<T> => {
+  try {
+    return await call<T>(client, method, request);
+  } catch (err) {
+    if (grpcStatus(err) === GRPC_UNAVAILABLE) {
+      throw new ServerUnavailable(
+        `BrowserHive に届きません (${method}): ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    throw err;
+  }
+};
 
 interface GetCaptureResponse {
   state: CaptureState;
@@ -131,33 +227,61 @@ const captureOne = async (
   client: Record<string, unknown>,
   url: string,
   crawlId: string,
+  capture: CaptureSettings,
   pollMs: number = POLL_INTERVAL_MS,
 ): Promise<PageResult> => {
   const submittedAt = new Date().toISOString();
 
-  const submitted = await call<{ accepted: boolean; taskId: string }>(client, "submitCapture", {
+  const submitted = await callOrFail<{ accepted: boolean; taskId: string }>(
+    client,
+    "submitCapture",
+    {
+      url,
+      labels: [],
+      correlationId: crawlId,
+      // **6 つ全部を送る。** proto3 では未設定と false が別物で、落とすと
+      // 「指定なし」として届く。何を立てるかを決めるのは waggle。
+      captureFormats: capture.formats,
+      signing: capture.signing,
+      // 在れば BrowserHive はここへ押し出し、自前の保管庫へは書かない。
+      ...(capture.artifactSink === undefined ? {} : { artifactSink: capture.artifactSink }),
+    },
+  );
+
+  /**
+   * 失敗として返す。**必ず `taskId` を載せる。**
+   *
+   * 投入は成功しているので id は在る。waggle はこれを鍵に `.result.json` を引いて
+   * 拾い直せる —— id を落とすと、成果物が S3 に在っても永久に台帳へ入らない。
+   */
+  const failure = (skipReason: string): PageResult => ({
     url,
-    labels: [],
+    status: "failed",
+    taskId: submitted.taskId,
     correlationId: crawlId,
-    // links が本体 —— これが無いと辿れない。wacz は成果物として残すため。
-    captureFormats: { png: false, webp: false, html: false, links: true, mhtml: false, wacz: true },
+    submittedAt,
+    finishedAt: new Date().toISOString(),
+    skipReason,
   });
 
   const deadline = Date.now() + CAPTURE_TIMEOUT_MS;
   for (;;) {
-    if (Date.now() > deadline) {
-      return {
-        url,
-        status: "failed",
-        taskId: submitted.taskId,
-        submittedAt,
-        finishedAt: new Date().toISOString(),
-        skipReason: "timed out waiting for the capture",
-      };
-    }
+    if (Date.now() > deadline) return failure("timed out waiting for the capture");
     await sleep(pollMs);
 
-    const got = await call<GetCaptureResponse>(client, "getCapture", { taskId: submitted.taskId });
+    let got: GetCaptureResponse;
+    try {
+      got = await callOrFail<GetCaptureResponse>(client, "getCapture", {
+        taskId: submitted.taskId,
+      });
+    } catch (err) {
+      if (err instanceof ServerUnavailable) throw err;
+      // **`NOT_FOUND` は「無かった」ではない。** BrowserHive の結果キャッシュには
+      // 上限があり、15 分待つ間に押し出されうる。取り込み自体は成功していて
+      // 成果物も S3 に在るので、waggle が manifest から拾い直す。
+      if (grpcStatus(err) === GRPC_NOT_FOUND) return failure(NOT_FOUND_REASON);
+      return failure(err instanceof Error ? err.message : String(err));
+    }
     if (got.state !== "CAPTURE_STATE_DONE") continue;
 
     const finishedAt = new Date().toISOString();
@@ -193,6 +317,7 @@ export const captureHost = async (
   host: string,
   urls: string[],
   crawlId: string,
+  capture: CaptureSettings,
   perHostDelayMs: number,
   initialDelayMs = 0,
   pollMs: number = POLL_INTERVAL_MS,
@@ -215,9 +340,14 @@ export const captureHost = async (
 
     console.log(`[${host}] ${String(index + 1)}/${String(urls.length)} ${url}`);
     try {
-      results.push(await captureOne(client, url, crawlId, pollMs));
+      results.push(await captureOne(client, url, crawlId, capture, pollMs));
     } catch (err) {
+      // **server が居ないなら、次を試しても同じ答えしか返らない。** 段ごと落とす。
+      if (err instanceof ServerUnavailable) throw err;
       // 1 件の失敗でこのホストを止めない。木の他の枝は進めてよい。
+      //
+      // ここに来るのは**投入そのものが落ちた**ときだけ (`captureOne` は投入より
+      // 後の誤りを自分で `failure()` にして返す)。だから taskId はまだ無い。
       results.push({
         url,
         status: "failed",
@@ -236,7 +366,18 @@ export async function main(
   host: string,
   urls: string[],
   per_host_delay_ms: number,
+  capture_formats: CaptureSettings["formats"],
+  signing: boolean,
   initial_delay_ms = 0,
+  /**
+   * 成果物の押し出し先。waggle が crawl ごとに 1 回きりで発行する。
+   *
+   * **省ける。** 省けば BrowserHive は従来どおり自前の保管庫へ書くので、2 つの経路が
+   * 同時に生きる。ここを必須にすると、受け口を建てていない配備が動かなくなる。
+   *
+   * flow は運ぶだけで中身を見ない —— 発行するのも、置き場所を決めるのも waggle。
+   */
+  artifact_sink?: { url: string; token: string },
 ): Promise<PageResult[]> {
   // **設定は変数から読む。引数では受けない。**
   // Windmill は schema の既定値を UI からの実行にしか埋めない —— webhook で起こすと
@@ -244,6 +385,21 @@ export async function main(
   // 「Channel target must be a string」で落ちる (実測)。waggle は自分がコンテナから
   // どう見えるかを知らないので、送らせることもできない。
   const target = await wmill.getVariable("u/admin/browserhive_target");
-  const client = await connect(target);
-  return captureHost(client, host, urls, crawl_id, per_host_delay_ms, initial_delay_ms);
+  // **空文字は「TLS を使わない」。** 変数そのものが無いなら落ちるのが正しい ——
+  // 黙って平文に落ちると、TLS のつもりの配備が気づかないまま平文で喋る。
+  const caPem = await wmill.getVariable("u/admin/browserhive_tls_ca");
+  const client = await connect(target, caPem);
+  return captureHost(
+    client,
+    host,
+    urls,
+    crawl_id,
+    {
+      formats: capture_formats,
+      signing,
+      ...(artifact_sink === undefined ? {} : { artifactSink: artifact_sink }),
+    },
+    per_host_delay_ms,
+    initial_delay_ms,
+  );
 }
