@@ -27,7 +27,7 @@ push before pulling — see [Windmill CE](/windmill-ce/).
 | ---------------------------------------------- | ----------------------------------------------------------------------------------- |
 | `windmill/f/waggle/*.ts`                       | the scripts Windmill runs, under Bun                                                |
 | `windmill/f/waggle/crawl_level.flow/flow.yaml` | the flow that runs one crawl level                                                  |
-| `windmill/f/waggle/daily.schedule.yaml`        | when the nightly run fires                                                          |
+| `windmill/f/waggle/daily.schedule.yaml`        | when the nightly crawl fires                                                        |
 | `test/`                                        | unit tests; **never put these under `windmill/f/`** — `sync push` would deploy them |
 | `scripts/*.mjs`                                | host-side helpers (bootstrap, tokens, checks)                                       |
 
@@ -41,9 +41,6 @@ directions by `scripts/check-env.mjs`: `.env.example`, the name lists in
    Enterprise feature. A failure leaves a red entry in the run history and waits
    to be noticed.
 2. **No production topology is decided.** Apple Container is for development.
-3. **No mutual exclusion with the CLI.** `waggle: pnpm run capture` does not
-   create a row in `runs`, so it can run alongside a run forage started. That is
-   a known gap on waggle's side.
 
 ## Licence
 

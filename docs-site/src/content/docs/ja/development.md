@@ -26,7 +26,7 @@ pnpm run windmill:push   # git を正として UI に反映する
 | ---------------------------------------------- | -------------------------------------------------------------------------------- |
 | `windmill/f/waggle/*.ts`                       | Windmill が Bun で動かす script                                                  |
 | `windmill/f/waggle/crawl_level.flow/flow.yaml` | クロール 1 段を回す flow                                                         |
-| `windmill/f/waggle/daily.schedule.yaml`        | 日次の実行が起きる時刻                                                           |
+| `windmill/f/waggle/daily.schedule.yaml`        | 日次のクロールが起きる時刻                                                       |
 | `test/`                                        | 単体試験。**`windmill/f/` の下には置かないこと** —— `sync push` が配備してしまう |
 | `scripts/*.mjs`                                | host 側の道具（bootstrap、トークン、点検）                                       |
 
@@ -38,8 +38,6 @@ pnpm run windmill:push   # git を正として UI に反映する
 1. **失敗しても誰にも知らせない。** schedule の error handler は Windmill の Enterprise
    機能。失敗は実行履歴に赤で残るだけで、見に行くまで気づかない。
 2. **本番構成は決めていない。** Apple Container は開発用。
-3. **CLI との排他は保証されない。** `waggle: pnpm run capture` は `runs` に行を作らないので、
-   forage が起こした実行と並んで走りうる（waggle 側の既知の穴）。
 
 ## ライセンス
 

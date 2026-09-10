@@ -7,8 +7,9 @@ import { describe, it, expect, beforeAll } from "vitest";
  *
  * Windmill の口 (`/jobs/run/f/...`) を直接叩けば速いが、それでは意味が無い。
  * この試験の目的は **waggle が実際に送る引数**を通すことで、waggle が送るのは
- * 5 つ (`crawl_id` / `depth` / `frontier` / `per_host_delay_ms` /
- * `host_parallelism`) だけ。`respect_robots` は**送られない**。
+ * 7 つ (`crawl_id` / `depth` / `frontier` / `per_host_delay_ms` /
+ * `host_parallelism` / `capture_formats` / `signing`) だけ。
+ * `respect_robots` は**送られない**。
  *
  * ## なぜ単体では代わりにならないか
  *
@@ -67,7 +68,7 @@ describe("クロールが flow を通って索引まで終わる", () => {
       method: "POST",
       headers: { ...auth(), "content-type": "application/json" },
       body: JSON.stringify({
-        seed: `${MEADOW}/links/hub`,
+        seeds: [`${MEADOW}/links/hub`],
         maxDepth: 1,
         maxPages: 5,
         // meadow の robots.txt は Crawl-delay: 3 を宣言している。短い値を渡して、

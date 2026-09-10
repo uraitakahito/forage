@@ -160,7 +160,8 @@ schema:
     signing:
       type: boolean
       description: WACZ に署名するか。waggle が決めて必ず送る
-  # waggle が送るのは crawl_id / depth / frontier / 間隔 / 並列度の 5 つだけ。
+  # waggle が送るのは crawl_id / depth / frontier / 間隔 / 並列度 /
+  # capture_formats / signing の 7 つだけ。
   # waggle は自分がコンテナからどう見えるかを知らないし、issuer の鍵も持っていない。
   #
   # **下の default は webhook からの実行では埋まらない。** 実測: 必須の引数だけ渡して

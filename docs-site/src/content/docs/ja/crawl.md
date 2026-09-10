@@ -3,7 +3,8 @@ title: リンクを辿る
 description: 1 段の流れ —— ホストで束ね、ホスト間は並列、ホスト内は逐次、間隔は完了の後
 ---
 
-waggle の `POST /api/crawls` が種を受け取り、**1 段ずつ** flow に投げる。flow は
+waggle の `POST /api/crawls` が種を受け取り（URL の配列か、`capture_targets` の
+有効な行を種にする `fromTargets`）、**1 段ずつ** flow に投げる。flow は
 `f/waggle/crawl_level` で、1 回の実行が 1 段。
 
 ```
@@ -69,10 +70,22 @@ Windmill は schema の既定値を **UI からの実行にしか埋めない**�
 起こすと何も届かない —— `browserhive_target` が undefined で
 「Channel target must be a string」になった。
 
+引数で届くのは、そのクロールについて waggle が決めて**必ず送る**もの —— URL と
+間隔、そして `capture_formats` / `signing`。
+
 ```sh
-pnpm run windmill:waggle-token   # waggle_token / waggle_api_url / browserhive_target
+pnpm run windmill:waggle-token   # waggle_token / waggle_api_url /
+                                 # browserhive_target / browserhive_tls_ca
 pnpm run windmill:push-proto     # browserhive の proto (resource)
 ```
+
+`u/admin/browserhive_tls_ca` は browserhive への gRPC を TLS にするときの CA 証明書
+（PEM）で、**空文字は「平文」**。空でも変数そのものは必ず作る —— 変数を作らない形に
+すると `getVariable` が落ち、script 側で「読めなかった」を「TLS は要らない」と扱った
+瞬間、読み取りの失敗が黙って平文に落ちる経路になる。「システムの root で TLS」は
+用意していない。browserhive の TLS は私設 CA を前提にしたもので、公開の証明書が要る
+というのは server が公開インターネット上に在るという意味になるが、そうではない。
+開発のスタックは平文。
 
 proto が **resource** で変数でないのは、変数の上限（10,000〜20,000 バイトの間）を
 16,315 バイトの proto が超えるため。`pnpm run proto:check` が waggle の写しとの差分を

@@ -6,7 +6,7 @@ description: Starts waggle's captures on time — a single Windmill instance who
 forage starts [waggle](https://uraitakahito.github.io/waggle/)'s captures **on
 time**. That is the whole job.
 
-waggle exposes `POST /api/runs` so that "when to run" can live outside it.
+waggle exposes `POST /api/crawls` so that "when to run" can live outside it.
 forage is that outside: one [Windmill](https://www.windmill.dev/) instance, a
 cron expression, and a script that calls the endpoint.
 
@@ -15,7 +15,7 @@ cron expression, and a script that calls the endpoint.
 |                    |                                                                                                 |
 | ------------------ | ----------------------------------------------------------------------------------------------- |
 | **forage decides** | when to run                                                                                     |
-| **waggle decides** | what to capture and how (targets from `capture_targets`, formats from `WAGGLE_API_RUN_FORMATS`) |
+| **waggle decides** | what to capture and how (targets from `capture_targets`, formats from `WAGGLE_CAPTURE_FORMATS`) |
 
 So this repository contains **no URLs**. It contains a cron expression.
 
@@ -23,17 +23,23 @@ That split is worth keeping. A scheduler that also knows what to capture becomes
 a second place to look when the wrong thing is captured — and the two places
 disagree eventually.
 
-## Two things it starts
+## One thing it starts
 
-**A run** — every enabled row of `capture_targets`, submitted in parallel. This
-is the nightly job; see [Schedule](/schedule/).
+**A crawl.** The nightly job asks waggle for a crawl seeded from every enabled
+row of `capture_targets` (`fromTargets`), at depth 0 — the list is captured, its
+links are not followed. See [Schedule](/schedule/).
 
-**A crawl** — one seed URL, followed link by link. waggle hands forage
-**one level at a time** and forage returns what it found; see
-[Following links](/crawl/).
+There used to be a second thing, a _run_: the same set of targets, submitted all
+at once. A run was a depth-0 crawl without the pacing, so it was folded into the
+crawl and `POST /api/runs` is gone. The nightly capture now waits between pages
+of the same host, like every other crawl.
 
-The crawl path is where the interesting constraints are, because it is the one
-that touches someone else's server repeatedly.
+forage also **runs every level of every crawl**, including the ones it did not
+start: waggle hands it **one level at a time** and forage returns what it found;
+see [Following links](/crawl/).
+
+That path is where the interesting constraints are, because it is the one that
+touches someone else's server repeatedly.
 
 ## Where things are
 
