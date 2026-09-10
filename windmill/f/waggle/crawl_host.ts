@@ -58,6 +58,13 @@ export interface CaptureSettings {
     wacz: boolean;
   };
   signing: boolean;
+  /**
+   * 成果物の押し出し先。**在れば BrowserHive は自前の保管庫へ書かない。**
+   *
+   * waggle が crawl ごとに 1 回きりで発行するので、ここには「運んできたもの」しか
+   * 入らない —— この層は中身を見ないし、作りもしない。
+   */
+  artifactSink?: { url: string; token: string };
 }
 
 export interface PageResult {
@@ -236,6 +243,8 @@ const captureOne = async (
       // 「指定なし」として届く。何を立てるかを決めるのは waggle。
       captureFormats: capture.formats,
       signing: capture.signing,
+      // 在れば BrowserHive はここへ押し出し、自前の保管庫へは書かない。
+      ...(capture.artifactSink === undefined ? {} : { artifactSink: capture.artifactSink }),
     },
   );
 
@@ -360,6 +369,15 @@ export async function main(
   capture_formats: CaptureSettings["formats"],
   signing: boolean,
   initial_delay_ms = 0,
+  /**
+   * 成果物の押し出し先。waggle が crawl ごとに 1 回きりで発行する。
+   *
+   * **省ける。** 省けば BrowserHive は従来どおり自前の保管庫へ書くので、2 つの経路が
+   * 同時に生きる。ここを必須にすると、受け口を建てていない配備が動かなくなる。
+   *
+   * flow は運ぶだけで中身を見ない —— 発行するのも、置き場所を決めるのも waggle。
+   */
+  artifact_sink?: { url: string; token: string },
 ): Promise<PageResult[]> {
   // **設定は変数から読む。引数では受けない。**
   // Windmill は schema の既定値を UI からの実行にしか埋めない —— webhook で起こすと
@@ -376,7 +394,11 @@ export async function main(
     host,
     urls,
     crawl_id,
-    { formats: capture_formats, signing },
+    {
+      formats: capture_formats,
+      signing,
+      ...(artifact_sink === undefined ? {} : { artifactSink: artifact_sink }),
+    },
     per_host_delay_ms,
     initial_delay_ms,
   );

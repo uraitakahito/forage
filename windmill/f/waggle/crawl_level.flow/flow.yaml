@@ -64,6 +64,9 @@ value:
                 signing:
                   type: javascript
                   expr: flow_input.signing
+                artifact_sink:
+                  type: javascript
+                  expr: flow_input.artifact_sink
         iterator:
           type: javascript
           expr: results.plan.groups
@@ -178,6 +181,17 @@ schema:
     signing:
       type: boolean
       description: WACZ に署名するか。waggle が決めて必ず送る
+    artifact_sink:
+      # 成果物の送り先。**必須にしない** —— 省けば BrowserHive は従来どおり自前の
+      # 保管庫へ書くので、2 つの経路が同時に生きる。切り替えを 1 本のクロールから
+      # 始められるのが、この省略可能性の狙い。
+      type: object
+      description: 成果物の押し出し先。waggle が crawl ごとに 1 回きりの口を発行する
+      properties:
+        url:
+          type: string
+        token:
+          type: string
   # waggle が送るのは crawl_id / depth / frontier / 間隔 / 並列度 /
   # capture_formats / signing の 7 つだけ。
   # waggle は自分がコンテナからどう見えるかを知らないし、issuer の鍵も持っていない。

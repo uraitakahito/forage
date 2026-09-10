@@ -311,3 +311,64 @@ describe("取り込む形式", () => {
     expect((sent as { signing: unknown }).signing).toBe(true);
   });
 });
+
+describe("成果物の送り先", () => {
+  /** 要求を握って返す最小の client。 */
+  const capturingClient = (seen: { req?: unknown }) =>
+    ({
+      submitCapture: (req: unknown, cb: (e: unknown, r?: unknown) => void) => {
+        seen.req = req;
+        cb(null, { accepted: true, taskId: "t1" });
+      },
+      getCapture: (_req: unknown, cb: (e: unknown, r?: unknown) => void) =>
+        cb(null, {
+          state: "CAPTURE_STATE_DONE",
+          report: { status: "CAPTURE_STATUS_SUCCESS", artifacts: {} },
+        }),
+    }) as unknown as Record<string, unknown>;
+
+  const formats = {
+    png: false,
+    webp: false,
+    html: false,
+    links: false,
+    mhtml: false,
+    wacz: true,
+  };
+
+  it("渡されたらそのまま送る", async () => {
+    const seen: { req?: unknown } = {};
+    const sink = { url: "http://waggle:7070/api/sink/c1", token: "tok" };
+
+    await captureHost(
+      capturingClient(seen),
+      "m",
+      ["a"],
+      "c1",
+      { formats, signing: false, artifactSink: sink },
+      0,
+      0,
+      5,
+    );
+
+    expect((seen.req as { artifactSink?: unknown }).artifactSink).toEqual(sink);
+  });
+
+  it("渡されなければ載せない —— 従来どおり自前の保管庫へ書かせる", async () => {
+    // **ここが空でないと、受け口を建てていない配備で取り込みが全部失敗する。**
+    const seen: { req?: unknown } = {};
+
+    await captureHost(
+      capturingClient(seen),
+      "m",
+      ["a"],
+      "c1",
+      { formats, signing: false },
+      0,
+      0,
+      5,
+    );
+
+    expect((seen.req as { artifactSink?: unknown }).artifactSink).toBeUndefined();
+  });
+});
