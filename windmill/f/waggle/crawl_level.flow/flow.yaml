@@ -99,6 +99,24 @@ value:
           crawl_id:
             type: javascript
             expr: flow_input.crawl_id
+  # **段が落ちたときに走る。** flow が途中で死ぬと report まで辿り着かないので、
+  # waggle は何も知らされず `crawls` の行が `running` のまま残る —— 部分 unique index が
+  # 以後のクロールを全部塞ぐ。実測で踏んだ (BrowserHive を止めたクロールが永久に走行中)。
+  #
+  # `error` は Windmill が failure_module にだけ渡す特別な入力。
+  failure_module:
+    id: failure
+    value:
+      type: script
+      path: f/waggle/fail_crawl
+      input_transforms:
+        crawl_id:
+          type: javascript
+          expr: flow_input.crawl_id
+        error:
+          type: javascript
+          expr: error
+
 schema:
   $schema: https://json-schema.org/draft/2020-12/schema
   type: object
