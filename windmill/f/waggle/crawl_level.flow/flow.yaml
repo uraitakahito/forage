@@ -58,6 +58,12 @@ value:
                 initial_delay_ms:
                   type: javascript
                   expr: flow_input.iter.value.initialDelayMs
+                capture_formats:
+                  type: javascript
+                  expr: flow_input.capture_formats
+                signing:
+                  type: javascript
+                  expr: flow_input.signing
         iterator:
           type: javascript
           expr: results.plan.groups
@@ -103,6 +109,8 @@ schema:
     - per_host_delay_ms
     - host_parallelism
     - respect_robots
+    - capture_formats
+    - signing
   properties:
     crawl_id:
       type: string
@@ -133,6 +141,25 @@ schema:
       type: boolean
       description: robots.txt を尊重するか
       default: true
+    capture_formats:
+      type: object
+      description: 取り込む形式。waggle が決めて必ず送る（既定値には頼れない）
+      properties:
+        png:
+          type: boolean
+        webp:
+          type: boolean
+        html:
+          type: boolean
+        links:
+          type: boolean
+        mhtml:
+          type: boolean
+        wacz:
+          type: boolean
+    signing:
+      type: boolean
+      description: WACZ に署名するか。waggle が決めて必ず送る
   # waggle が送るのは crawl_id / depth / frontier / 間隔 / 並列度の 5 つだけ。
   # waggle は自分がコンテナからどう見えるかを知らないし、issuer の鍵も持っていない。
   #
@@ -148,3 +175,7 @@ schema:
     - crawl_id
     - depth
     - frontier
+    # **形式と署名は必須。** 既定値は webhook 起動では埋まらないので、
+    # 省略できる形にすると「渡し忘れ」が黙って別の形式で走ることになる。
+    - capture_formats
+    - signing

@@ -24,6 +24,27 @@ schema:
       type: number
       description: ""
       default: null
+    capture_formats:
+      type: object
+      description: ""
+      default: null
+      properties:
+        png:
+          type: boolean
+        webp:
+          type: boolean
+        html:
+          type: boolean
+        links:
+          type: boolean
+        mhtml:
+          type: boolean
+        wacz:
+          type: boolean
+    signing:
+      type: boolean
+      description: ""
+      default: null
     urls:
       type: array
       description: ""
@@ -36,3 +57,5 @@ schema:
     - host
     - urls
     - per_host_delay_ms
+    - capture_formats
+    - signing
