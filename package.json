@@ -17,7 +17,7 @@
     "check-env": "node scripts/check-env.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "pnpm run format:check && pnpm run check-env && pnpm run typecheck && pnpm test",
+    "check": "pnpm run format:check && pnpm run check-env && pnpm run typecheck && pnpm test && pnpm run site:check",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "windmill:push-proto": "node --env-file-if-exists=.env scripts/push-proto.mjs",
     "proto:check": "node scripts/proto-check.mjs",
