@@ -54,6 +54,16 @@ const fail = (lines) => {
   process.exit(1);
 };
 
+/**
+ * この repo の設定ではない、外から来る変数。**明示した分だけを見逃す。**
+ *
+ * 以前はここが「`.env.example` に在るものだけ照合する」という条件だった。
+ * それだと **env.mjs にも .env.example にも無い新しい変数が黙って通る** ——
+ * 宣言を忘れたときこそ鳴ってほしいのに、忘れた瞬間だけ鳴らない形になっていた
+ * (実際に `WAGGLE_BROWSERHIVE_TLS_CA_PEM` を足したとき素通りした)。
+ */
+const EXTERNAL_ENV = ["NO_COLOR"];
+
 const inExample = documented();
 const inCode = used();
 const problems = [];
@@ -65,8 +75,7 @@ for (const name of inExample) {
   if (!declared.includes(name)) problems.push(`  - ${name}: .env.example にあるが env.mjs に無い`);
 }
 for (const name of inCode) {
-  // NO_COLOR のような、この repo の設定ではない変数は数えない。
-  if (!declared.includes(name) && inExample.has(name)) {
+  if (!declared.includes(name) && !EXTERNAL_ENV.includes(name)) {
     problems.push(`  - ${name}: 読んでいるのに env.mjs の一覧に無い`);
   }
 }

@@ -1,10 +1,10 @@
 ---
 title: Testing
-description: 44 unit tests that need nothing, one end-to-end test that needs the whole stack, and why both layers are required
+description: 61 unit tests that need nothing, one end-to-end test that needs the whole stack, and why both layers are required
 ---
 
 ```sh
-pnpm run test        # 44 unit tests, no stack, a few seconds
+pnpm run test        # 61 unit tests, no stack, a few seconds
 pnpm run test:e2e    # 1 end-to-end test, needs the stack
 pnpm run check       # format, env, typecheck, unit tests
 ```
@@ -46,8 +46,9 @@ elsewhere in this workspace and cost a round trip.
 ## The end-to-end test starts a real crawl
 
 One test, about 40 seconds. It goes through waggle's API — **not** Windmill's
-run endpoint — because the point is to carry the arguments waggle actually sends
-(five of them; `respect_robots` is not among them).
+run endpoint — because the point is to carry the arguments waggle actually sends:
+`crawl_id`, `depth`, `frontier`, `per_host_delay_ms`, `host_parallelism`,
+`capture_formats`, `signing`. **`respect_robots` is not among them.**
 
 It asserts three things:
 
@@ -65,11 +66,11 @@ something it thinks it is watching and is not.
 
 ## The nightly loop refuses to guess
 
-`trigger_run.ts` is the only thing that decides whether the nightly run succeeded,
-and the e2e does not touch it (that drives the crawl path, not the run path). It
-used to have no coverage at all, because `POLL_INTERVAL_MS` was a 15-second
-constant and the sleep happens _before_ the first poll — one test, fifteen
-seconds.
+`trigger_crawl.ts` is the only thing that decides whether the nightly capture
+succeeded, and the e2e does not touch it — that test posts its own seed to
+waggle, so the trigger script is never in the picture. It used to have no
+coverage at all, because `POLL_INTERVAL_MS` was a 15-second constant and the
+sleep happens _before_ the first poll — one test, fifteen seconds.
 
 It now takes `poll_interval_ms` as an argument, the same 3-line change made to
 `crawl_host.ts`, so the loop runs on real timers at millisecond scale.
@@ -77,21 +78,22 @@ It now takes `poll_interval_ms` as an argument, the same 3-line change made to
 The guard worth knowing about is this one:
 
 ```ts
-if (run.state !== "succeeded") throw new Error(`知らない状態「…」`);
+if (crawl.state !== "succeeded") throw new Error(`知らない状態「…」`);
 ```
 
-Without it, a run state the script does not recognise falls through **both**
+Without it, a state the script does not recognise falls through **both**
 comparisons and returns `succeeded` with counts of zero. That is exactly what a
-renamed field looks like — and it happened: waggle's `runs.status` became
-`runs.state`, and the pre-rename script was pointed at the post-rename API to
-watch this fire. It threw, naming the likely cause, instead of reporting a
-green nightly run that never ran.
+renamed field looks like — and it happened once, for real: waggle's
+`runs.status` became `runs.state`, and the pre-rename script was pointed at the
+post-rename API to watch this fire. It threw, naming the likely cause, instead of
+reporting a green nightly run that never ran. `runs` has since been folded into
+`crawls`; the guard moved with it, unchanged, and now reads `crawl.state`.
 
 Nothing else protects the shape of that response: waggle has no serializer
-schema, and this side does a bare `as RunState` cast.
+schema, and this side does a bare `as CrawlState` cast.
 
 ## What is not covered
 
-The e2e runs one crawl. It does not start a _run_ (the `capture_targets` batch),
-so `POST /api/runs`'s own path through waggle is exercised only by unit tests on
-both sides.
+The e2e seeds its crawl with a URL, so nothing exercises `fromTargets` — the path
+that turns `capture_targets` into seeds, which is the one the nightly job takes.
+That path through waggle is covered only by unit tests on both sides.

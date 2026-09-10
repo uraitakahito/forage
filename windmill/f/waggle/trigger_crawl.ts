@@ -2,12 +2,22 @@
  * waggle に取り込みを 1 回起こし、終わるまで見届ける。
  *
  * Windmill が決めるのは「いつ」だけ。「何を・どう投げるか」は waggle の側にある
- * (取り込む形式は waggle の `WAGGLE_API_RUN_FORMATS`)。ここから渡せるのは `limit` だけで、
- * それも省ける —— 知らない鍵を送ると waggle は 400 を返す。
+ * (対象の一覧は `capture_targets`、取り込む形式は `WAGGLE_CAPTURE_FORMATS`)。
+ * ここから渡せるのは `limit` だけで、それも省ける —— 知らない鍵を送ると waggle は
+ * 400 を返す。
+ *
+ * ## なぜ「クロール」なのか
+ *
+ * 以前は `POST /api/runs` を叩いていた。`runs` は「`capture_targets` の有効な行を
+ * 全部投げる」1 回で、深さも範囲も持たない —— これは **`max_depth = 0` のクロール**と
+ * 同じものだったので、畳んだ。`fromTargets` がその表現で、既定では辿らない。
+ *
+ * 畳んだことで、日次の取り込みにも**礼儀 (ホストごとの間隔) が効く**ようになった。
+ * 以前の run は全件を同時に投げていて、間隔の概念が無かった。
  *
  * ## 終わるまで待つ理由
  *
- * `POST /api/runs` は 202 を返して即座に戻る。そこで終わりにすると、**この job は
+ * `POST /api/crawls` は 202 を返して即座に戻る。そこで終わりにすると、**この job は
  * 取り込みが失敗しても緑のまま**になる。Windmill の実行履歴に赤を残せるのは
  * ここで throw したときだけなので、終端まで見てから決める。
  *
@@ -16,27 +26,30 @@
  * waggle は走行中の 2 本目を 409 で拒む (構造的に 1 本しか走れない)。これは
  * 「今回は見送る」であって異常ではないので、**緑で終わる**。再試行してもいけない ——
  * 走っている 1 本が終わるまで、何度投げても同じ答えが返るだけ。
+ *
+ * 畳んだことで、**手で起こしたクロールとも塞ぎ合う**ようになった。礼儀の観点では
+ * それが正しい (同じホストを 2 経路が叩かない) が、日次が見送られる回数は増える。
  */
 
 type Terminal = "succeeded" | "failed";
 
-interface RunState {
-  runId: string;
+interface CrawlState {
+  crawlId: string;
   state: "running" | Terminal;
+  stopReason: string | null;
   startedAt: string;
   finishedAt: string | null;
-  submitted: number | null;
-  accepted: number | null;
-  rejected: number | null;
+  pagesDiscovered: number | null;
+  pagesCaptured: number | null;
   error: string | null;
 }
 
 export interface Result {
   outcome: Terminal | "skipped";
-  runId?: string;
-  submitted?: number;
-  accepted?: number;
-  rejected?: number;
+  crawlId?: string;
+  pagesDiscovered?: number;
+  pagesCaptured?: number;
+  stopReason?: string | null;
 }
 
 /** 取り込みは数十分に達しうる。既定は 2 時間で諦める。 */
@@ -77,10 +90,11 @@ export async function main(
 ): Promise<Result> {
   const headers = { authorization: `Bearer ${token}`, "content-type": "application/json" };
 
-  const started = await fetch(`${waggle_url}/api/runs`, {
+  const started = await fetch(`${waggle_url}/api/crawls`, {
     method: "POST",
     headers,
-    body: JSON.stringify(limit === undefined ? {} : { limit }),
+    // `fromTargets` が「登録済みの一覧を全部」。深さは waggle が 0 にする。
+    body: JSON.stringify({ fromTargets: limit === undefined ? {} : { limit } }),
   });
 
   if (started.status === 409) {
@@ -89,56 +103,59 @@ export async function main(
     return { outcome: "skipped" };
   }
   if (started.status !== 202) {
-    throw await failure(started, "POST /api/runs");
+    throw await failure(started, "POST /api/crawls");
   }
 
-  const { runId } = (await started.json()) as { runId: string };
-  console.log(`起こしました: ${runId}`);
+  const { crawlId } = (await started.json()) as { crawlId: string };
+  console.log(`起こしました: ${crawlId}`);
 
   const deadline = Date.now() + timeout_ms;
   for (;;) {
     if (Date.now() > deadline) {
       // 走ったまま残る。ここで殺す術は無い (waggle に中断の口が無い)。
       throw new Error(
-        `${runId} が ${String(Math.round(timeout_ms / 60000))} 分で終わりませんでした。` +
-          " まだ走っているかもしれません —— GET /api/runs/:id で見てください",
+        `${crawlId} が ${String(Math.round(timeout_ms / 60000))} 分で終わりませんでした。` +
+          " まだ走っているかもしれません —— GET /api/crawls/:id で見てください",
       );
     }
     await sleep(poll_interval_ms);
 
-    const res = await fetch(`${waggle_url}/api/runs/${runId}`, { headers });
-    if (!res.ok) throw await failure(res, `GET /api/runs/${runId}`);
-    const run = (await res.json()) as RunState;
-    if (run.state === "running") continue;
+    const res = await fetch(`${waggle_url}/api/crawls/${crawlId}`, { headers });
+    if (!res.ok) throw await failure(res, `GET /api/crawls/${crawlId}`);
+    const crawl = (await res.json()) as CrawlState;
+    if (crawl.state === "running") continue;
 
     const counts = {
-      submitted: run.submitted ?? 0,
-      accepted: run.accepted ?? 0,
-      rejected: run.rejected ?? 0,
+      pagesDiscovered: crawl.pagesDiscovered ?? 0,
+      pagesCaptured: crawl.pagesCaptured ?? 0,
     };
-    if (run.state === "failed") {
-      throw new Error(`${runId} は失敗しました: ${run.error ?? "(理由なし)"}`);
+    if (crawl.state === "failed") {
+      throw new Error(`${crawlId} は失敗しました: ${crawl.error ?? "(理由なし)"}`);
     }
 
     // **知らない値を「成功」に落とさない。**
     //
-    // ここが無いと、waggle 側の field 名が変わっただけで `run.status` が
+    // ここが無いと、waggle 側の field 名が変わっただけで `crawl.state` が
     // `undefined` になり、上の 2 つの比較を素通りして succeeded を返す ——
     // 走行中でも失敗でも「成功」と報告することになる。日次の実行はここでしか
     // 成否を決めていないので、静かに間違えると誰も気づかない。
     //
     // 線の形を守っているものは他に無い: waggle 側に response schema は無く、
-    // こちらは `as RunState` の素のキャスト。**この 1 つが唯一の砦。**
-    if (run.state !== "succeeded") {
+    // こちらは `as CrawlState` の素のキャスト。**この 1 つが唯一の砦。**
+    // (`runs.status` → `runs.state` の改名を捕まえたのがこれ。)
+    if (crawl.state !== "succeeded") {
       throw new Error(
-        `${runId}: 知らない状態「${String(run.state)}」が返りました。` +
-          " waggle の /api/runs/:id が返す field 名が変わっていませんか",
+        `${crawlId}: 知らない状態「${String(crawl.state)}」が返りました。` +
+          " waggle の /api/crawls/:id が返す field 名が変わっていませんか",
       );
     }
 
     // succeeded は「最後まで走った」であって「全部取れた」ではない。
-    // 投げたものが全部拒まれていても succeeded で終わる —— 内訳は counts が語る。
-    console.log(`完了: ${JSON.stringify(counts)}`);
-    return { outcome: "succeeded", runId, ...counts };
+    // 打ち切りでも succeeded で終わる —— 理由は `stopReason` が語る。
+    //
+    // **対象一覧からの取り込みは常に `max_depth` で終わる。** 深さ 0 なので
+    // 「次の段は無い」が「深さの上限に当たった」として記録される。異常ではない。
+    console.log(`完了: ${JSON.stringify({ ...counts, stopReason: crawl.stopReason })}`);
+    return { outcome: "succeeded", crawlId, ...counts, stopReason: crawl.stopReason };
   }
 }

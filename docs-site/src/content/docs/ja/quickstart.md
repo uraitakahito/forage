@@ -45,7 +45,7 @@ host                                   │ コンテナ
       ▼                                │
   windmill:waggle-token ───────────────┼──► secret 変数 u/admin/waggle_token
                                        │            │
-  waggle-api 0.0.0.0:7070  ◄───────────┼── trigger_run.ts
+  waggle-api 0.0.0.0:7070  ◄───────────┼── trigger_crawl.ts
 ```
 
 **dev issuer は loopback から出さないこと。** あれは頼まれれば誰の名前でもトークンを
@@ -56,7 +56,7 @@ host                                   │ コンテナ
 
 **issuer を再起動したら `pnpm run windmill:waggle-token` をやり直すこと。**
 issuer は起動のたびに鍵をメモリ上で作り直すので（意図された挙動）、古いトークンは
-401 になる。`report_level.ts` と `trigger_run.ts` の失敗メッセージがそう書いてあるのは、
+401 になる。`report_level.ts` と `trigger_crawl.ts` の失敗メッセージがそう書いてあるのは、
 踏みやすく、かつ status だけからは辿れないため。
 
 ## picker が 401 になる

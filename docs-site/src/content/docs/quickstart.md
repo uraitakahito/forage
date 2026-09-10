@@ -45,7 +45,7 @@ host                                   │ container
       ▼                                │
   windmill:waggle-token ───────────────┼──► secret variable u/admin/waggle_token
                                        │            │
-  waggle-api 0.0.0.0:7070  ◄───────────┼── trigger_run.ts
+  waggle-api 0.0.0.0:7070  ◄───────────┼── trigger_crawl.ts
 ```
 
 **Keep the dev issuer on loopback.** It mints a token for whoever asks, under
@@ -59,7 +59,7 @@ finished token**.
 **Re-run `pnpm run windmill:waggle-token` after restarting the issuer.** It
 generates its keys in memory on every start (deliberately), so the old token
 starts returning 401. The error messages in `report_level.ts` and
-`trigger_run.ts` say so, because this is easy to hit and hard to guess.
+`trigger_crawl.ts` say so, because this is easy to hit and hard to guess.
 
 ## The picker returns 401
 

@@ -3,8 +3,9 @@ title: Following links
 description: How one crawl level runs — grouped by host, parallel across hosts, sequential within one, with the gap after completion
 ---
 
-waggle's `POST /api/crawls` takes a seed and hands forage **one level at a
-time**. The flow is `f/waggle/crawl_level`; one execution is one level.
+waggle's `POST /api/crawls` takes seed URLs — or `fromTargets`, the enabled rows
+of `capture_targets` — and hands forage **one level at a time**. The flow is
+`f/waggle/crawl_level`; one execution is one level.
 
 ```
 plan_level    group by host, fetch robots.txt once per host
@@ -74,10 +75,23 @@ settings as arguments. Windmill fills schema defaults **only for UI-triggered
 runs**, so a webhook run gets nothing — `browserhive_target` arrived `undefined`
 and the job died with "Channel target must be a string".
 
+What does arrive as arguments is what waggle decides for that crawl and always
+sends: the URLs, the delay, and `capture_formats` / `signing`.
+
 ```sh
-pnpm run windmill:waggle-token   # waggle_token / waggle_api_url / browserhive_target
+pnpm run windmill:waggle-token   # waggle_token / waggle_api_url /
+                                 # browserhive_target / browserhive_tls_ca
 pnpm run windmill:push-proto     # BrowserHive's proto (a resource)
 ```
+
+`u/admin/browserhive_tls_ca` is the CA certificate (PEM) for the gRPC leg to
+BrowserHive, and **an empty value means plaintext**. The variable is written even
+when it is empty, on purpose: if it were simply absent, `getVariable` would throw,
+and a script that reads "could not fetch it" as "no TLS wanted" turns a read
+failure into a plaintext connection. There is no "TLS with the system roots"
+mode — BrowserHive's TLS assumes a private CA, and needing a public certificate
+would mean the server is on the public internet. The development stack is
+plaintext.
 
 The proto is a **resource** rather than a variable because it is 16,315 bytes and
 the variable limit sits between 10,000 and 20,000. `pnpm run proto:check` diffs it

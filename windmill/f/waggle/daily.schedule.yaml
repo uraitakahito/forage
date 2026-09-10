@@ -7,6 +7,6 @@ enabled: true
 is_flow: false
 no_flow_overlap: false
 schedule: 0 0 4 * * *
-script_path: f/waggle/trigger_run
+script_path: f/waggle/trigger_crawl
 timezone: Asia/Tokyo
 ws_error_handler_muted: false
