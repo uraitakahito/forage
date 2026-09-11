@@ -32,7 +32,7 @@
 import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import puppeteer from "puppeteer";
+import puppeteer, { type Page } from "puppeteer";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = resolve(ROOT, "docs-site/src/assets/windmill-ui");
@@ -61,13 +61,32 @@ const login = async () => {
   return token;
 };
 
+/** Windmill の job 一覧のうち、この script が見る分だけ。 */
+interface CompletedJob {
+  id: string;
+  script_path?: string;
+  success?: boolean;
+}
+
+/** 教材にする 4 本の run の ID。撮影の前提が揃っているかの検査でもある。 */
+interface TeachingRuns {
+  /** crawl_level の成功 */
+  flowOk: string;
+  /** crawl_host の失敗 (browserhive_proto が無い) */
+  protoFail: string;
+  /** report_level の失敗 */
+  reportFail: string;
+  /** report_level の成功 (段の詳細を見せる用) */
+  stepOk: string;
+}
+
 /** 教材の run を API から探す。ID を直書きすると再撮影のたびに嘘になる。 */
-const findTeachingRuns = async (token) => {
+const findTeachingRuns = async (token: string): Promise<TeachingRuns> => {
   const res = await fetch(`${BASE}/api/w/${WORKSPACE}/jobs/completed/list?per_page=100`, {
     headers: { authorization: `Bearer ${token}` },
   });
-  const rows = await res.json();
-  const picks = {};
+  const rows = (await res.json()) as CompletedJob[];
+  const picks: Partial<TeachingRuns> = {};
   for (const j of rows) {
     const p = j.script_path ?? "";
     if (p === "f/waggle/crawl_level" && j.success && !picks.flowOk) picks.flowOk = j.id;
@@ -75,23 +94,25 @@ const findTeachingRuns = async (token) => {
     if (p.endsWith("report_level") && !j.success && !picks.reportFail) picks.reportFail = j.id;
     if (p.endsWith("report_level") && j.success && !picks.stepOk) picks.stepOk = j.id;
   }
-  for (const key of ["flowOk", "protoFail", "reportFail", "stepOk"]) {
-    if (!picks[key]) {
+  for (const key of ["flowOk", "protoFail", "reportFail", "stepOk"] as const) {
+    if (picks[key] === undefined) {
       throw new Error(
         `run 履歴に ${key} が無い —— このファイル冒頭の「前提」を見て作ってから撮り直すこと`,
       );
     }
   }
-  return picks;
+  // 上のループが 4 つとも揃っていることを確かめた後。型はそれを追えないので
+  // ここだけ言い切る —— 検査を通り抜けた時点で Partial ではない。
+  return picks as TeachingRuns;
 };
 
 /**
  * 描画の証拠を待つ。networkidle だけでは SPA の白い絵が撮れる (実測) ので、
  * 「その画面にしか出ない文字列」が現れるまで待つ。
  */
-const waitForText = async (page, text) => {
+const waitForText = async (page: Page, text: string): Promise<void> => {
   await page.waitForFunction(
-    (t) => document.body !== null && document.body.innerText.includes(t),
+    (t: string) => document.body !== null && document.body.innerText.includes(t),
     { timeout: 30_000 },
     text,
   );
@@ -103,9 +124,9 @@ const waitForText = async (page, text) => {
  * `text` を含む要素まで scroll する。run 詳細のエラーパネルや flow の段グラフは
  * fold の下に居るので、ヘッダだけの絵にならないように目印まで下げる。
  */
-const scrollToText = async (page, text) => {
-  await page.evaluate((t) => {
-    const all = [...document.querySelectorAll("div, span, p, pre, h2, h3")];
+const scrollToText = async (page: Page, text: string): Promise<void> => {
+  await page.evaluate((t: string) => {
+    const all = [...document.querySelectorAll<HTMLElement>("div, span, p, pre, h2, h3")];
     const el = all.find(
       (e) => e.childElementCount === 0 && e.innerText !== undefined && e.innerText.includes(t),
     );
@@ -115,9 +136,9 @@ const scrollToText = async (page, text) => {
 };
 
 /** innerText が `text` から始まる button / link をクリックする。 */
-const clickByText = async (page, text) => {
-  const clicked = await page.evaluate((t) => {
-    const el = [...document.querySelectorAll("button, a, div[role=button]")].find(
+const clickByText = async (page: Page, text: string): Promise<void> => {
+  const clicked = await page.evaluate((t: string) => {
+    const el = [...document.querySelectorAll<HTMLElement>("button, a, div[role=button]")].find(
       (e) => e.innerText !== undefined && e.innerText.trim().startsWith(t),
     );
     if (el === undefined) return false;
@@ -136,7 +157,7 @@ const main = async () => {
   const page = await browser.newPage();
   await page.setViewport(VIEWPORT);
 
-  const shoot = async (file) => {
+  const shoot = async (file: string): Promise<void> => {
     await page.screenshot({ path: `${OUT}/${file}` });
     console.log(file);
   };

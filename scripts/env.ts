@@ -9,7 +9,7 @@
 /**
  * この repo が読む環境変数の全体。**`guardEnv` の検査対象そのもの** なので、
  * 変数を足したらここにも足すこと。`.env.example` との突き合わせは
- * `scripts/check-env.mjs` が行う。
+ * `scripts/check-env.ts` が行う。
  */
 export const OPTIONAL_ENV = [
   "WINDMILL_URL",
@@ -44,18 +44,32 @@ export const guardEnv = () => {
   process.exit(1);
 };
 
-export const optional = (name, fallback) => {
+export const optional = (name: string, fallback: string): string => {
   const value = process.env[name];
   return value === undefined || value === "" ? fallback : value;
 };
 
-export const required = (name, hint) => {
+export const required = (name: string, hint?: string): string => {
   const value = process.env[name];
   if (value === undefined || value === "") {
     throw new Error(`${name} is not set${hint === undefined ? "" : ` (${hint})`}`);
   }
   return value;
 };
+
+/**
+ * repo の根。**dist 経由で動くことを前提に解く。**
+ *
+ * script は `dist/scripts/foo.js` として実行されるので、自分の位置から
+ * `..` を 1 つ登ると `dist/` で止まる —— `.env.example` も `proto/` も
+ * `docs-site/` もそこには無い。TypeScript 化のときに実際に踏んだ
+ * (`ENOENT: dist/.env.example`)。
+ *
+ * `process.cwd()` を使うのは、**package.json の script から呼ばれる**ため。
+ * pnpm は repo の根で実行するので、どこから叩いても根が返る。`import.meta.url`
+ * に頼ると「ソースの位置」と「実行される位置」が別物になった瞬間に壊れる。
+ */
+export const repoRoot = (): string => process.cwd();
 
 /** よく使う 3 つ。既定値は `.env.example` のコメントと一致させること。 */
 export const windmillUrl = () => optional("WINDMILL_URL", "http://127.0.0.1:8000");
@@ -68,7 +82,23 @@ export const ledgerApiUrl = () => optional("CAPTURE_LEDGER_API_URL", "http://192
  * 失敗の本文をそのまま投げる —— Windmill は理由を本文で返すので、status だけに
  * すると「400 でした」しか分からなくなる。
  */
-export const windmillFetch = async (path, { token, method = "GET", body } = {}) => {
+export interface WindmillFetchOptions {
+  /** 付けると Authorization: Bearer に載る。bootstrap の前は無い。 */
+  token?: string;
+  method?: string;
+  /** JSON にして送る。undefined なら content-type も付けない。 */
+  body?: unknown;
+}
+
+/**
+ * 戻り値が `unknown` なのは、**endpoint ごとに形が違うから**。呼ぶ側が
+ * 自分の期待する形に絞る (型アサーションか、必要なら検証) —— ここで
+ * `any` を返すと、絞り忘れが型検査を素通りする。
+ */
+export const windmillFetch = async (
+  path: string,
+  { token, method = "GET", body }: WindmillFetchOptions = {},
+): Promise<unknown> => {
   const res = await fetch(`${windmillUrl()}${path}`, {
     method,
     headers: {

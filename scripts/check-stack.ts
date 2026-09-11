@@ -14,16 +14,16 @@
 import { connect } from "node:net";
 
 /** HTTP の答えが返ること自体が待ち受けの証拠。405 でも 401 でもよい。 */
-const answers = (url) =>
+const answers = (url: string): Promise<boolean> =>
   fetch(url, { signal: AbortSignal.timeout(3000) }).then(
     () => true,
     () => false,
   );
 
-const portOpen = (host, port) =>
-  new Promise((resolve) => {
+const portOpen = (host: string, port: number): Promise<boolean> =>
+  new Promise<boolean>((resolve) => {
     const socket = connect({ host, port });
-    const done = (ok) => {
+    const done = (ok: boolean): void => {
       socket.destroy();
       resolve(ok);
     };

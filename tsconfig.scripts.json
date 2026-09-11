@@ -1,0 +1,25 @@
+{
+  // host 側の道具 (scripts/) を **出力する**ための設定。型を見るだけの
+  // tsconfig.json とは役割が違うので、分けてある。
+  //
+  //   tsconfig.json         型検査。noEmit。windmill/f (bun が動かす)・test・scripts を見る
+  //   tsconfig.scripts.json 出力。scripts だけを dist/scripts/*.js に出す
+  //
+  // **module と moduleResolution を上書きしているのが要点。** 継いだ側の
+  // `esnext` / `bundler` は「実行は bun や vitest がやる、ここでは型だけ見る」
+  // 前提の設定で、そのまま出力すると node が import を解決できない。dist を
+  // node が直接実行する以上、node の解決規則に合わせ直す必要がある。
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "dist",
+    // `.` にすると dist/scripts/foo.js に出る。scripts/ にすると dist/foo.js
+    // になり、将来 src/ が増えたときに衝突する。
+    "rootDir": ".",
+    "module": "nodenext",
+    "moduleResolution": "nodenext"
+  },
+  // windmill/f と test は **出力しない**。前者は bun が .ts のまま動かし、
+  // 後者は vitest が動かす。ここに混ぜると dist に要らないものが溜まる。
+  "include": ["scripts/**/*.ts"]
+}

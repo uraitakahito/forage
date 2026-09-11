@@ -17,12 +17,11 @@
  * ソースの行番号を指す注記が 6 箇所あり、何もそれを検査していない。同じものを増やさない。
  */
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { spawnSync } from "node:child_process";
+import { repoRoot } from "./env.js";
 
-const here = dirname(fileURLToPath(import.meta.url));
-const local = join(here, "..", "proto", "browserhive", "v1", "capture.proto");
+const local = join(repoRoot(), "proto", "browserhive", "v1", "capture.proto");
 
 const REPO = "uraitakahito/capture-ledger";
 const PATH = "proto/browserhive/v1/capture.proto";

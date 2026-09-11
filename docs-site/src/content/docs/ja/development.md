@@ -18,11 +18,11 @@ pnpm run windmill:push   # git を正として UI に反映する
 [Windmill CE](/windmill-ce/) に実例がある。
 
 `windmill/wmill.yaml` は `includeSchedules: true` にしてある。秘密は同期しない
-（`skipSecrets`）。`u/admin/waggle_token` は `scripts/capture-ledger-token.mjs` が API 経由で入れる。
+（`skipSecrets`）。`u/admin/waggle_token` は `scripts/capture-ledger-token.ts` が API 経由で入れる。
 
 ## スクリーンショットを撮り直す
 
-[管理画面](/windmill-ui/) の PNG は `scripts/docs-shots.mjs` の生成物。手で撮った絵は
+[管理画面](/windmill-ui/) の PNG は `scripts/docs-shots.ts` の生成物。手で撮った絵は
 無い。UI が変わったら（＝ `docker-compose.yml` の Windmill の pin を上げたら）撮り直す。
 `check-doc-refs` が「compose の pin と `shots-manifest.json` の版が食い違っていたら落とす」
 ので、忘れても CI が止める。
@@ -35,7 +35,7 @@ pnpm run windmill:push   # git を正として UI に反映する
 #    - report_level の失敗（何らかの失敗が 1 本）
 # 2. 撮る（Chromium は初回だけ手で取得。puppeteer は docs 撮影専用）
 ./node_modules/.bin/puppeteer browsers install chrome
-node scripts/docs-shots.mjs
+pnpm run docs:shots
 ```
 
 `puppeteer` を消すときは `package.json` の `//devDependencies` の註も消すこと。
@@ -50,8 +50,8 @@ node scripts/docs-shots.mjs
 | `test/`                                        | 単体試験。**`windmill/f/` の下には置かないこと** —— `sync push` が配備してしまう |
 | `scripts/*.mjs`                                | host 側の道具（bootstrap、トークン、点検）                                       |
 
-環境変数を足すのは 3 点契約で、`scripts/check-env.mjs` が両方向に検査する:
-`.env.example`、`scripts/env.mjs` の名前の一覧、そしてリテラル文字列での読み取り。
+環境変数を足すのは 3 点契約で、`scripts/check-env.ts` が両方向に検査する:
+`.env.example`、`scripts/env.ts` の名前の一覧、そしてリテラル文字列での読み取り。
 
 ## 範囲外
 
