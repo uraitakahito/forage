@@ -92,6 +92,9 @@ enum ErrorType {
   ERROR_TYPE_CONNECTION = 3;
   ERROR_TYPE_SIGNING = 4;
   ERROR_TYPE_INTERNAL = 5;
+  // 成果物を受け口へ押し出せなかった。**この経路には待ち場所が無い**ので、
+  // 取り込みは丸ごと失われている。受け口を直して投げ直す。
+  ERROR_TYPE_ARTIFACT_SINK = 6;
 }
 
 // この取り込みが、前のタスクの残留物を持ち越すかどうか。
@@ -116,6 +119,40 @@ enum SessionMode {
 // -- リクエスト側 ----------------------------------------------------------
 
 // 取得する形式。少なくとも 1 つは true でなければならない (handlers が検証する)。
+// URL への扱い。順序付きの一覧の 1 項目で、最初に当たったものが効く。
+message UrlPolicy {
+  // URL 全体に当てる glob。ワイルドカードは `*` のみ。
+  string pattern = 1;
+  // deny | no-archive | no-body。
+  //
+  // **enum ではなく string**。proto の enum は知らない値を UNRECOGNIZED に潰すので、
+  // 新しい action を足したとき古いサーバがそれを黙って別物として扱う ——
+  // 「送らないつもりで送っていた」が起こりうる。string ならサーバ側の検証で
+  // INVALID_ARGUMENT にでき、呼ぶ側は自分の要求が通らなかったことを知れる。
+  string action = 2;
+}
+
+// メディア型への扱い。応答が届いてからしか判定できないので deny は取りえない。
+message ContentTypePolicy {
+  string prefix = 1;
+  // no-body のみ。
+  string action = 2;
+}
+
+// `repeated` を包むための箱。
+//
+// proto3 の repeated は **空と未設定を区別できない**。この API ではその差が
+// 意味を持つ —— 空の一覧は「何も濾さないで」という指示で、未設定は
+// 「サーバ既定に任せる」。message で包めば presence が付き、型そのものが
+// 「言及したかどうか」を表す。bool のフラグを添えるより誤用しにくい。
+message UrlPolicyList {
+  repeated UrlPolicy policies = 1;
+}
+
+message ContentTypePolicyList {
+  repeated ContentTypePolicy policies = 1;
+}
+
 message CaptureFormats {
   bool png = 1;
   bool webp = 2;
@@ -236,6 +273,24 @@ message BehaviorSpec {
   optional bool site_behaviors = 3;
 }
 
+// 成果物の送り先。**呼ぶ側が 1 回きりの口を渡し、こちらはそこへ押し出す。**
+//
+// これを送ると、この取り込みの成果物はサーバの保管庫ではなく `url` へ PUT される。
+// server は bucket も prefix も知らず、置き場所を選べない —— 選ぶのは口を出した側で、
+// 応答が最終的な location を返す。
+//
+// **省略できる。** 省略すればサーバ自身の保管庫へ書く従来の経路になるので、
+// 2 つの経路は同じ server で同時に生きられる。
+message ArtifactSink {
+  // PUT の宛先。`<url>/<filename>` へ 1 成果物ずつ送る。
+  string url = 1;
+  // 呼ぶ側が発行した 1 回きりの資格。`authorization: Bearer <token>` で送る。
+  //
+  // **これが権限そのもの。** server はこれ以上のものを持たないので、
+  // 他の取り込みの成果物に触れる手段が無い。
+  string token = 2;
+}
+
 message SubmitCaptureRequest {
   string url = 1;
   // 成果物のファイル名に入る札。使える文字の制限は無い —— 名前を組むときに
@@ -315,6 +370,37 @@ message SubmitCaptureRequest {
   // —— 効いた値は archive の settings.limits.max_response_bytes に残るので、
   // 何が起きたかは後から読める。
   optional int64 max_response_bytes = 19;
+
+  // この取り込みに限って policy を差し替える。**丸ごと置き換え** で、サーバ既定とは
+  // 混ざらない。空の一覧は「何も濾さない」という指示で、省略 (サーバ既定に任せる) とは別。
+  //
+  // 上限 (max_response_bytes) と違って丸めない。到達してよい範囲を守るのは
+  // この層の仕事ではないので、締める方向に縛る理由が無い。
+  //
+  // 効いた一覧は archive の settings.urlPolicies に順序のまま残り、
+  // サーバ既定は GetServerStatus の default_url_policies で読める。
+  optional UrlPolicyList url_policies = 22;
+  optional ContentTypePolicyList content_type_policies = 23;
+
+  // この取り込みに限って、web storage の **値** まで archive に入れるかを決める。
+  // 省略時はサーバ既定 (--storage-values)。
+  //
+  // 目録 (browserhive:capture.storage) は値の有無に関わらず必ず載る。これが足すのは
+  // storage/origins.jsonl の値のほうで、どちらであるかは目録の valuesRecorded が述べる。
+  //
+  // 既定が off なのは、web storage が bearer token や session 識別子を日常的に持ち、
+  // それが WARC の payload のどこにも現れないため。**true を送ることは、archive を
+  // 渡すことがそれらを渡すことになる、と引き受けること。**
+  //
+  // optional なのは false を送れるようにするため。サーバ既定が on の配備で、
+  // この取り込みだけ値を出さない、が言えなければならない。
+  optional bool storage_values = 24;
+
+  // 成果物の送り先。省略するとサーバ自身の保管庫へ書く (従来どおり)。
+  //
+  // 保管庫を持たない配備では**必須**で、無ければ受理の時点で断る ——
+  // 撮ってから「置けません」は、この系でいちばん高くつく失敗。
+  optional ArtifactSink artifact_sink = 25;
 }
 
 message GetCaptureRequest {
@@ -352,6 +438,13 @@ message CaptureArtifacts {
 
 message WaczStats {
   int32 total_recorded = 1;
+  // 内部では totalWithheld と呼ぶもの (deny または no-archive の policy に一致し、
+  // request / response のレコードを書かなかったリクエスト)。
+  //
+  // **名前を変えていない。** 数える集合は 7.0.0 から変わっておらず、変わったのは
+  // 呼び方だけ。wire の名前は archive の語彙とは別の契約で、読んでいるのは
+  // grpcurl を叩く手元のスクリプトのような **こちらから見えない相手**。
+  // 意味が同じものを改名して、その全部を黙って壊す理由が無い。
   int32 total_blocked = 2;
   int32 total_skipped_content_type = 3;
   int32 total_truncated_too_large = 4;
@@ -359,6 +452,11 @@ message WaczStats {
   int32 total_failed = 6;
   int32 total_incomplete = 7;
   int64 total_body_bytes = 8;
+  // deny の policy により、リクエスト自体を送らなかったもの。total_withheld の内数。
+  //
+  // 送ったかどうかは証憑としての意味を変える —— 送っていれば相手のサーバに
+  // 痕跡が残り、送っていなければ残らない。
+  int32 total_denied = 9;
 }
 
 message WaczSignatureChecks {
@@ -583,4 +681,10 @@ message GetServerStatusResponse {
   QueueSnapshot queue = 10;
   BuildInfo build = 11;
   ServerLimits limits = 12;
+  // 取り込みが policy を指定しなかったときに効くもの。順序のまま。
+  //
+  // 晒すのは、呼ぶ側が「既定とだいたい同じ、ただし 1 つだけ違う」を組み立てられる
+  // ようにするため —— url_policies は丸ごと置き換えなので、足すには既定を知る必要がある。
+  repeated UrlPolicy default_url_policies = 13;
+  repeated ContentTypePolicy default_content_type_policies = 14;
 }
