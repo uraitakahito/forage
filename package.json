@@ -51,6 +51,6 @@
     "vitest": "^5.0.0",
     "windmill-cli": "1.806.0",
     "windmill-client": "1.806.0",
-    "yaml": "2.8.1"
+    "yaml": "2.8.3"
   }
 }
