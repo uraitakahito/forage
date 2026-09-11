@@ -1,5 +1,13 @@
 {
   "name": "capture-scheduler",
+  "//": [
+    "package.json にコメントを書く方法の議論:",
+    "https://stackoverflow.com/questions/14221579/how-do-i-add-comments-to-package-json-for-npm-install"
+  ],
+  "//devDependencies": {
+    "puppeteer": "docs のスクリーンショット撮影 (scripts/docs-shots.mjs) 専用。配備にも flow の実行にも CI にも使わない —— Windmill の UI を開いて撮るためだけに Chromium を使う。重いのは承知で、誰のマシンでも同じ絵が出ることを優先した (puppeteer-core + 手元の Chrome では再現性が崩れる)。version は pin。ビルド (Chromium 取得) は pnpm-workspace.yaml の allowBuilds で false にし、.npmrc の PUPPETEER_SKIP_DOWNLOAD でも抑えている (CI で 150MB を毎回 DL しない)。撮る人は初回だけ手で `./node_modules/.bin/puppeteer browsers install chrome` する。撮り直しの手順は docs の development ページ。puppeteer を消すときはこの註と allowBuilds の puppeteer 行、.npmrc の該当行も消すこと。",
+    "sharp": "docs サイトの画像最適化 (astro:assets の <Image>) が要求する。windmill-ui のスクリーンショットを配信サイズに落とすためだけに要る。site:build (= CI の site job) が使う。撮影の puppeteer とは別で、こちらは CI でも走る。"
+  },
   "version": "0.1.0",
   "private": true,
   "description": "Windmill が capture-ledger の取り込みを時刻どおりに起こす",
@@ -36,7 +44,9 @@
     "@grpc/proto-loader": "0.8.1",
     "@types/node": "^26.5.0",
     "prettier": "3.6.2",
+    "puppeteer": "25.10.0",
     "robots-parser": "3.0.1",
+    "sharp": "0.35.4",
     "typescript": "5.9.3",
     "vitest": "^5.0.0",
     "windmill-cli": "1.806.0",
