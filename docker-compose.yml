@@ -18,9 +18,12 @@
 # worker ×3、native worker、indexer、LSP、Caddy。あれは「1 台で本番を張る」ための形で、
 # ここが要るのは **waggle の実行 API を時刻どおりに叩くこと** だけ。
 #
-# `MODE=standalone` は server と worker を 1 プロセスで兼ねる。それで 2 サービスに
-# 収まる。NUM_WORKERS は standalone では 1 に固定されるが、ここで走る仕事は
-# 「HTTP を叩いて待つ」だけなので、並列度は要らない。
+# `MODE=standalone` は server と worker を 1 プロセスで兼ねる。**ただし standalone の
+# NUM_WORKERS は 1 に固定**で、これだけでは日次の経路が詰まる。`trigger_crawl` は
+# クロールが終わるまで待ち (失敗を実行履歴に赤で残すため)、その待っている間に waggle が
+# `crawl_level` を**同じ Windmill へ投げ返す** —— 1 本しかない worker を奪い合って、
+# 投げ返されたフローは永久に queue で待つ。実測で確かめた: `trigger_crawl` を取り消した
+# 途端にフローが動き出した。だから worker をもう 1 本、別サービスとして立てる。
 #
 # **`windmill-full` イメージは使わない** —— amd64 しか publish されていないため
 # (registry で確認済み)。素の `windmill` には arm64 がある。
@@ -67,6 +70,26 @@ services:
     depends_on:
       - windmill-db
     # standalone は server と worker を兼ねるぶん、素の server より要る。
+    mem_limit: 2gb
+
+  # 2 本目の worker。**server は兼ねない** (`MODE=worker`)。
+  #
+  # 要るのは並列度そのものではなく、**待つ仕事と待たれる仕事を同時に持てること**。
+  # `trigger_crawl` が 1 本目を占めている間に、投げ返された `crawl_level` がここで走る。
+  # 段が深くなっても同時に走るのは「待っている trigger_crawl」と「進んでいるフロー」の
+  # 2 つなので、2 本で足りる。
+  #
+  # port は開けない。worker は DB を通して仕事を取るだけで、誰からも呼ばれない。
+  windmill-worker:
+    image: ghcr.io/windmill-labs/windmill:1.806.0
+    environment:
+      - MODE=worker
+      - WORKER_GROUP=default
+      # server と同じ理由で複合値にする (素のサービス名は IP に化ける)。
+      - DATABASE_URL=postgres://windmill:windmill@windmill-db.forage:5432/windmill?sslmode=disable
+      - RUST_LOG=info
+    depends_on:
+      - windmill-db
     mem_limit: 2gb
 
 volumes:
