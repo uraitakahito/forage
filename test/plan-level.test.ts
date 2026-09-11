@@ -5,11 +5,11 @@ import { main, type Candidate } from "../windmill/f/waggle/plan_level.js";
  * 段の計画。**この repo の Windmill script で唯一、判断が集まっている場所。**
  *
  * IO は robots.txt を取る `fetch` 1 つだけなので、それを差し替えれば全部見える。
- * Windmill も waggle も browserhive も要らない。
+ * Windmill も capture-ledger も browserhive も要らない。
  *
  * ここに試験が無かった間に、`respect_robots` が `null` で届いて robots が一度も
  * 読まれない状態が出荷された。**クロールは成功し、アーカイブも正常に見えた** ——
- * meadow のフィクスチャで実際に取りに行った先を見るまで気づけなかった。
+ * capture-fixtures のフィクスチャで実際に取りに行った先を見るまで気づけなかった。
  */
 
 /** robots.txt を返す fetch。呼ばれた URL を記録する。 */
@@ -44,7 +44,7 @@ describe("robots を読むかどうか", () => {
     // falsy なので robots が一度も読まれない。
     //
     // schema に `default: true` があっても救われない —— 既定値は UI からの実行にしか
-    // 埋まらず、waggle は webhook で起こす (実測で確認済み)。守っているのは
+    // 埋まらず、capture-ledger は webhook で起こす (実測で確認済み)。守っているのは
     // `?? true` の 1 か所だけ。
     const calls = robotsServing(HIDDEN);
     const plan = await main([at("http://m:8080/links/hidden")], 1000, null);

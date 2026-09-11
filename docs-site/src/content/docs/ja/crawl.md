@@ -3,7 +3,7 @@ title: リンクを辿る
 description: 1 段の流れ —— ホストで束ね、ホスト間は並列、ホスト内は逐次、間隔は完了の後
 ---
 
-waggle の `POST /api/crawls` が種を受け取り（URL の配列か、`capture_targets` の
+capture-ledger の `POST /api/crawls` が種を受け取り（URL の配列か、`capture_targets` の
 有効な行を種にする `fromTargets`）、**1 段ずつ** flow に投げる。flow は
 `f/waggle/crawl_level` で、1 回の実行が 1 段。
 
@@ -13,15 +13,15 @@ plan_level    ホストで束ね、robots.txt を 1 ホスト 1 回引く
 for-each      ホストごとに並列（parallelism = host_parallelism）
   crawl_host    1 ホスト内は逐次。完了 → 間隔 → 次
   ↓
-report_level  waggle に報告し、次の段があるかを受け取る
+report_level  capture-ledger に報告し、次の段があるかを受け取る
   ↓
-index_level   台帳に載ったぶんを索引に載せるよう waggle に頼む
+index_level   台帳に載ったぶんを索引に載せるよう capture-ledger に頼む
 ```
 
-**繰り返すのは waggle。** この flow は 1 段で終わる。Windmill の while ループに
+**繰り返すのは capture-ledger。** この flow は 1 段で終わる。Windmill の while ループに
 繰り返しを持たせようとしたが、`stop_after_if` を付けた最小の flow が
 **643 回まで回り続けた**。相手のサーバに負荷をかけない仕組みを、暴走しうるループの
-上には載せない。上限の判定は waggle 側にあり、単体試験が付いている。
+上には載せない。上限の判定は capture-ledger 側にあり、単体試験が付いている。
 
 ## 礼儀はループの形で守る
 
@@ -31,7 +31,7 @@ index_level   台帳に載ったぶんを索引に載せるよう waggle に頼�
 
 - **ホスト間** の同時数 = for-loop の `parallelism`
 - **ホスト内** は `crawl_host` が逐次に回し、**完了の後**に間隔を空ける
-- **段の境目** は waggle が「そのホストを最後に触り終えた時刻」を渡し、残りを待たせる
+- **段の境目** は capture-ledger が「そのホストを最後に触り終えた時刻」を渡し、残りを待たせる
 
 ### 間隔は完了の後。投入の前ではない
 
@@ -70,11 +70,11 @@ Windmill は schema の既定値を **UI からの実行にしか埋めない**�
 起こすと何も届かない —— `browserhive_target` が undefined で
 「Channel target must be a string」になった。
 
-引数で届くのは、そのクロールについて waggle が決めて**必ず送る**もの —— URL と
+引数で届くのは、そのクロールについて capture-ledger が決めて**必ず送る**もの —— URL と
 間隔、そして `capture_formats` / `signing`。
 
 ```sh
-pnpm run windmill:waggle-token   # waggle_token / waggle_api_url /
+pnpm run windmill:capture-ledger-token   # waggle_token / waggle_api_url /
                                  # browserhive_target / browserhive_tls_ca
 pnpm run windmill:push-proto     # browserhive の proto (resource)
 ```
@@ -88,5 +88,5 @@ pnpm run windmill:push-proto     # browserhive の proto (resource)
 開発のスタックは平文。
 
 proto が **resource** で変数でないのは、変数の上限（10,000〜20,000 バイトの間）を
-16,315 バイトの proto が超えるため。`pnpm run proto:check` が waggle の写しとの差分を
+16,315 バイトの proto が超えるため。`pnpm run proto:check` が capture-ledger の写しとの差分を
 見る —— 手で写した契約は黙って腐るので、番人を置く。

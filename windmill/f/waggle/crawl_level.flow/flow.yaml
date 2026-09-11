@@ -1,8 +1,8 @@
 summary: クロール 1 段
 description: |
-  waggle が投げた 1 段を処理して報告する。
+  capture-ledger が投げた 1 段を処理して報告する。
 
-  この flow は **1 段で終わる**。次の段を起こすのは waggle —— Windmill の while ループに
+  この flow は **1 段で終わる**。次の段を起こすのは capture-ledger —— Windmill の while ループに
   繰り返しを持たせようとしたが、stop_after_if を付けた最小の flow が 643 回まで回り続けた
   (実測)。相手のサーバに負荷をかけない仕組みを、暴走しうるループの上には載せない。
 
@@ -11,7 +11,7 @@ description: |
     - ホストを並列に回す        for-loop の parallelism —— CE で効く唯一の同時実行の枠
     - ホスト内は逐次 + 間隔     (crawl_host)
 
-  報告のあとに索引を 1 段だけ足してある。載せる中身を選ぶのは waggle で、ここが渡すのは
+  報告のあとに索引を 1 段だけ足してある。載せる中身を選ぶのは capture-ledger で、ここが渡すのは
   crawl_id だけ —— 判断を、単体試験の無い場所に置かないため。
 
   Windmill の per-key concurrency limit は使わない。実装が jobs_ee.rs にあり、
@@ -76,7 +76,7 @@ value:
           expr: flow_input.host_parallelism
         skip_failures: false
     - id: report
-      summary: waggle に報告する
+      summary: capture-ledger に報告する
       value:
         type: script
         path: f/waggle/report_level
@@ -103,7 +103,7 @@ value:
             type: javascript
             expr: flow_input.crawl_id
   # **段が落ちたときに走る。** flow が途中で死ぬと report まで辿り着かないので、
-  # waggle は何も知らされず `crawls` の行が `running` のまま残る —— 部分 unique index が
+  # capture-ledger は何も知らされず `crawls` の行が `running` のまま残る —— 部分 unique index が
   # 以後のクロールを全部塞ぐ。実測で踏んだ (BrowserHive を止めたクロールが永久に走行中)。
   #
   # `error` は Windmill が failure_module にだけ渡す特別な入力。
@@ -135,7 +135,7 @@ schema:
   properties:
     crawl_id:
       type: string
-      description: waggle が発行したクロールの id
+      description: capture-ledger が発行したクロールの id
     depth:
       type: integer
       description: この段の深さ。種が 0
@@ -164,7 +164,7 @@ schema:
       default: true
     capture_formats:
       type: object
-      description: 取り込む形式。waggle が決めて必ず送る（既定値には頼れない）
+      description: 取り込む形式。capture-ledger が決めて必ず送る（既定値には頼れない）
       properties:
         png:
           type: boolean
@@ -180,21 +180,21 @@ schema:
           type: boolean
     signing:
       type: boolean
-      description: WACZ に署名するか。waggle が決めて必ず送る
+      description: WACZ に署名するか。capture-ledger が決めて必ず送る
     artifact_sink:
       # 成果物の送り先。**必須にしない** —— 省けば BrowserHive は従来どおり自前の
       # 保管庫へ書くので、2 つの経路が同時に生きる。切り替えを 1 本のクロールから
       # 始められるのが、この省略可能性の狙い。
       type: object
-      description: 成果物の押し出し先。waggle が crawl ごとに 1 回きりの口を発行する
+      description: 成果物の押し出し先。capture-ledger が crawl ごとに 1 回きりの口を発行する
       properties:
         url:
           type: string
         token:
           type: string
-  # waggle が送るのは crawl_id / depth / frontier / 間隔 / 並列度 /
+  # capture-ledger が送るのは crawl_id / depth / frontier / 間隔 / 並列度 /
   # capture_formats / signing の 7 つだけ。
-  # waggle は自分がコンテナからどう見えるかを知らないし、issuer の鍵も持っていない。
+  # capture-ledger は自分がコンテナからどう見えるかを知らないし、issuer の鍵も持っていない。
   #
   # **下の default は webhook からの実行では埋まらない。** 実測: 必須の引数だけ渡して
   # 起こすと、host_parallelism も respect_robots も「渡されていない」まま届く。

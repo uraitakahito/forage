@@ -45,14 +45,14 @@ elsewhere in this workspace and cost a round trip.
 
 ## The end-to-end test starts a real crawl
 
-One test, about 40 seconds. It goes through waggle's API — **not** Windmill's
-run endpoint — because the point is to carry the arguments waggle actually sends:
+One test, about 40 seconds. It goes through capture-ledger's API — **not** Windmill's
+run endpoint — because the point is to carry the arguments capture-ledger actually sends:
 `crawl_id`, `depth`, `frontier`, `per_host_delay_ms`, `host_parallelism`,
 `capture_formats`, `signing`. **`respect_robots` is not among them.**
 
 It asserts three things:
 
-1. **meadow never received `/links/hidden`**, which its robots.txt disallows. The
+1. **capture-fixtures never received `/links/hidden`**, which its robots.txt disallows. The
    verdict comes from the _other end's_ request log, because the ledger can only
    say what it recorded.
 2. the crawl succeeded and captured at least one page
@@ -60,7 +60,7 @@ It asserts three things:
    the flow
 
 Breaking `?? true` in `plan_level.ts` and deploying turns **both** the unit test
-and the e2e red, and the e2e shows meadow receiving the forbidden page. That pair
+and the e2e red, and the e2e shows capture-fixtures receiving the forbidden page. That pair
 was checked once on purpose: if only one layer goes red, the other is watching
 something it thinks it is watching and is not.
 
@@ -68,7 +68,7 @@ something it thinks it is watching and is not.
 
 `trigger_crawl.ts` is the only thing that decides whether the nightly capture
 succeeded, and the e2e does not touch it — that test posts its own seed to
-waggle, so the trigger script is never in the picture. It used to have no
+capture-ledger, so the trigger script is never in the picture. It used to have no
 coverage at all, because `POLL_INTERVAL_MS` was a 15-second constant and the
 sleep happens _before_ the first poll — one test, fifteen seconds.
 
@@ -83,17 +83,17 @@ if (crawl.state !== "succeeded") throw new Error(`知らない状態「…」`);
 
 Without it, a state the script does not recognise falls through **both**
 comparisons and returns `succeeded` with counts of zero. That is exactly what a
-renamed field looks like — and it happened once, for real: waggle's
+renamed field looks like — and it happened once, for real: capture-ledger's
 `runs.status` became `runs.state`, and the pre-rename script was pointed at the
 post-rename API to watch this fire. It threw, naming the likely cause, instead of
 reporting a green nightly run that never ran. `runs` has since been folded into
 `crawls`; the guard moved with it, unchanged, and now reads `crawl.state`.
 
-Nothing else protects the shape of that response: waggle has no serializer
+Nothing else protects the shape of that response: capture-ledger has no serializer
 schema, and this side does a bare `as CrawlState` cast.
 
 ## What is not covered
 
 The e2e seeds its crawl with a URL, so nothing exercises `fromTargets` — the path
 that turns `capture_targets` into seeds, which is the one the nightly job takes.
-That path through waggle is covered only by unit tests on both sides.
+That path through capture-ledger is covered only by unit tests on both sides.

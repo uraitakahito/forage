@@ -2,7 +2,7 @@
 /**
  * `.env.example` と、コードが実際に読んでいる環境変数を突き合わせる。
  *
- * waggle の同名スクリプトと同じ狙い: **`.env.example` を唯一の出どころに保つ**。
+ * capture-ledger の同名スクリプトと同じ狙い: **`.env.example` を唯一の出どころに保つ**。
  * 変数を足したのに書き忘れると、`setup.sh` が写した `.env` にその行が無く、
  * 使う人は「なぜ動かないか」を名前も知らないまま探すことになる。
  *
@@ -60,7 +60,7 @@ const fail = (lines) => {
  * 以前はここが「`.env.example` に在るものだけ照合する」という条件だった。
  * それだと **env.mjs にも .env.example にも無い新しい変数が黙って通る** ——
  * 宣言を忘れたときこそ鳴ってほしいのに、忘れた瞬間だけ鳴らない形になっていた
- * (実際に `WAGGLE_BROWSERHIVE_TLS_CA_PEM` を足したとき素通りした)。
+ * (実際に `CAPTURE_LEDGER_BROWSERHIVE_TLS_CA_PEM` を足したとき素通りした)。
  */
 const EXTERNAL_ENV = ["NO_COLOR"];
 

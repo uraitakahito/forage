@@ -1,11 +1,11 @@
 /**
- * 段が落ちたことを waggle に伝え、クロールを締める。
+ * 段が落ちたことを capture-ledger に伝え、クロールを締める。
  *
  * flow の `failure_module` から呼ばれる。**普通の段としては走らない。**
  *
  * ## なぜ要るのか
  *
- * flow が途中で落ちると `report_level` に辿り着かないので、waggle は何も知らされない。
+ * flow が途中で落ちると `report_level` に辿り着かないので、capture-ledger は何も知らされない。
  * 行は `running` のまま残り、部分 unique index が**以後のクロールを全部塞ぐ**。
  * 実測で踏んだ: BrowserHive を止めてクロールを起こすと、`crawl_host` が `UNAVAILABLE`
  * で落ちて flow ごと失敗し、行は永久に走行中になった。
@@ -62,7 +62,7 @@ export async function main(crawl_id: string, error: unknown): Promise<Result> {
     console.log(closed ? "締めました" : "締めるものがありませんでした（既に終わっていた）");
     return { closed };
   } catch (err) {
-    // waggle に届かないこともある。**それでもこの段は緑で終える。**
+    // capture-ledger に届かないこともある。**それでもこの段は緑で終える。**
     const problem = err instanceof Error ? err.message : String(err);
     console.log(`締められませんでした: ${problem}`);
     return { closed: false, problem };

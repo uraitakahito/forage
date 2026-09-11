@@ -45,7 +45,7 @@ jobs:
       - name: Typecheck
         run: pnpm run typecheck
 
-      # 単体だけ。e2e は Windmill・waggle・browserhive・meadow が要るので
+      # 単体だけ。e2e は Windmill・capture-ledger・browserhive・capture-fixtures が要るので
       # ここでは走らせない (pnpm run test:e2e を手で)。
       - name: Test
         run: pnpm test

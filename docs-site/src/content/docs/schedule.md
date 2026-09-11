@@ -14,7 +14,7 @@ enabled: true
 
 To stop it, set `enabled: false` and run `pnpm run windmill:push`.
 
-`trigger_crawl` posts to waggle's `POST /api/crawls` with `fromTargets` — every
+`trigger_crawl` posts to capture-ledger's `POST /api/crawls` with `fromTargets` — every
 enabled row of `capture_targets`, at depth 0 — and then polls
 `GET /api/crawls/:id` until the crawl is finished. Waiting is the point: the API
 answers **202** immediately, so a job that returned there would be green even
@@ -23,12 +23,12 @@ when the capture failed. Only a throw leaves a red entry in the run history.
 ## Overlap is not a problem
 
 Windmill starts the next job even if the previous one is still running. That is
-fine here: waggle refuses a second concurrent crawl with **409**, and
+fine here: capture-ledger refuses a second concurrent crawl with **409**, and
 `trigger_crawl.ts` treats that as a skip and finishes green. It does not retry —
 until the crawl in flight ends, every attempt gets the same answer.
 
 So however tightly the schedule is packed, exactly one crawl is ever in flight.
-The guarantee lives in waggle's partial unique index, not in capture-scheduler — which is
+The guarantee lives in capture-ledger's partial unique index, not in capture-scheduler — which is
 the right place for it, because an application-side flag breaks silently the day
 a second process appears.
 

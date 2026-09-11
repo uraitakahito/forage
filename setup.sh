@@ -60,16 +60,16 @@ cat <<'MSG'
                                    # → WINDMILL_TOKEN= を .env に貼る
   pnpm run windmill:push           # スクリプトと schedule を投入する
 
-waggle 側 (別のターミナル):
+capture-ledger 側 (別のターミナル):
 
-  cd ../waggle
-  # .env に WAGGLE_API_HOST=0.0.0.0 と WAGGLE_OIDC_ISSUER=http://127.0.0.1:9099
+  cd ../capture-ledger
+  # .env に CAPTURE_LEDGER_API_HOST=0.0.0.0 と CAPTURE_LEDGER_OIDC_ISSUER=http://127.0.0.1:9099
   pnpm run oidc:issuer             # 127.0.0.1:9099 のまま。**外に出さないこと**
   pnpm run api
   pnpm run fga:grant submitter windmill acme
 
 戻ってきて、鍵を渡す:
 
-  pnpm run windmill:waggle-token
+  pnpm run windmill:capture-ledger-token
 
 MSG

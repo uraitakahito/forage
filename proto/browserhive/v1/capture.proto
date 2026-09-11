@@ -280,7 +280,7 @@ message SubmitCaptureRequest {
   // 読み込め」が「DPR 2 だけで撮れ」になり、しかも誰も気づかない。
   //
   // 12・17・18 は cache と reset_state が使っていた。session に畳んで消したが、
-  // 番号は同じ理由で空けておく —— waggle は この .proto を vendoring していて
+  // 番号は同じ理由で空けておく —— capture-ledger は この .proto を vendoring していて
   // (`proto:sync` が要る)、同期を忘れると古い番号のまま喋る。実際に一度起きている。
   // 予約しておけば未知のフィールドとして捨てられ、サーバ既定 (= 隔離) に落ちる。
   // 予約しなければ、同じ wire type の別フィールドとして黙って読まれる。

@@ -43,14 +43,14 @@ pnpm run check       # format / env / typecheck / 単体
 
 ## e2e は本物のクロールを 1 本起こす
 
-1 件、約 40 秒。Windmill の実行の口ではなく **waggle の API** を通す —— 目的が
-「waggle が実際に送る引数」を運ぶことだから: `crawl_id` / `depth` / `frontier` /
+1 件、約 40 秒。Windmill の実行の口ではなく **capture-ledger の API** を通す —— 目的が
+「capture-ledger が実際に送る引数」を運ぶことだから: `crawl_id` / `depth` / `frontier` /
 `per_host_delay_ms` / `host_parallelism` / `capture_formats` / `signing` の 7 つで、
 **`respect_robots` は入っていない**。
 
 見ているのは 3 つ:
 
-1. **meadow が `/links/hidden` を一度も受け取っていない**こと。robots.txt が禁じている
+1. **capture-fixtures が `/links/hidden` を一度も受け取っていない**こと。robots.txt が禁じている
    ページで、判定は**相手のリクエストログ**から採る —— 台帳は「記録したこと」しか
    言わない。
 2. クロールが成功し、1 ページ以上取り込んでいること
@@ -58,13 +58,13 @@ pnpm run check       # format / env / typecheck / 単体
    終わっている証拠
 
 `plan_level.ts` の `?? true` を消して配備すると、**単体と e2e が両方赤くなり**、
-e2e のほうは meadow が禁じられたページを受け取ったことを示す。この対は一度わざと
+e2e のほうは capture-fixtures が禁じられたページを受け取ったことを示す。この対は一度わざと
 確かめてある: 片方しか赤くならないなら、もう片方は見ているつもりで見ていない。
 
 ## 日次のループは推測しない
 
 `trigger_crawl.ts` は**日次の取り込みの成否を決めている唯一の場所**で、e2e は
-そこを触らない —— あちらは自分で種を waggle に投げるので、この script を通らない。
+そこを触らない —— あちらは自分で種を capture-ledger に投げるので、この script を通らない。
 以前は覆いが 1 つも無かった —— `POLL_INTERVAL_MS` が 15 秒の定数で、しかも sleep が
 最初の問い合わせより**前**に入るため、試験 1 本が 15 秒かかったから。
 
@@ -79,16 +79,16 @@ if (crawl.state !== "succeeded") throw new Error(`知らない状態「…」`);
 
 これが無いと、script が知らない状態は **2 つの比較を素通りして** `succeeded` を
 件数 0 で返す。**名前がずれたときの見え方がまさにこれ** —— そして実際に一度起きた:
-waggle の `runs.status` が `runs.state` になったとき、改名前の script を改名後の
+capture-ledger の `runs.status` が `runs.state` になったとき、改名前の script を改名後の
 API に当てて、ここが発火することを確かめた。走らなかった実行を緑と報告する代わりに、
 原因の見当まで添えて落ちた。その後 `runs` は `crawls` に畳まれたが、砦はそのまま
 移り、いまは `crawl.state` を見ている。
 
-線の形を守っているものは他に無い —— waggle 側に response schema は無く、こちらは
+線の形を守っているものは他に無い —— capture-ledger 側に response schema は無く、こちらは
 `as CrawlState` の素のキャスト。
 
 ## 覆えていないもの
 
 e2e はクロールの種を URL で渡すので、**`fromTargets`**（`capture_targets` を種に
-する道 —— 日次が通るのはこちら）はどこでも回っていない。waggle 側のその経路は、
+する道 —— 日次が通るのはこちら）はどこでも回っていない。capture-ledger 側のその経路は、
 両側の単体試験でしか触れていない。

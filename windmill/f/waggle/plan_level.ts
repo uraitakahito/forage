@@ -19,7 +19,7 @@
  * 状態は共有されない (`getState` は path と flow に紐づく)。1 段 1 回で受け入れる。
  *
  * `Crawl-delay` があれば、設定した間隔と比べて**長いほうを採る**。相手が言っている値を
- * こちらの都合で縮めない。実測: 設定 1000ms に対して meadow の `Crawl-delay: 3` が
+ * こちらの都合で縮めない。実測: 設定 1000ms に対して capture-fixtures の `Crawl-delay: 3` が
  * 勝ち、間隔は 3203 / 3014 / 3006ms になった。
  */
 import robotsParser from "robots-parser";
@@ -30,7 +30,7 @@ const USER_AGENT = "*";
 export interface Candidate {
   url: string;
   host: string;
-  /** このホストを最後に触り終えた時刻。waggle が入れる。最初の段は null。 */
+  /** このホストを最後に触り終えた時刻。capture-ledger が入れる。最初の段は null。 */
   lastFinishedAt?: string | null;
 }
 
@@ -56,7 +56,7 @@ export interface Skipped {
 
 export interface Plan {
   groups: HostGroup[];
-  /** 取らなかったものと理由。waggle に報告して `crawl_pages` に残す。 */
+  /** 取らなかったものと理由。capture-ledger に報告して `crawl_pages` に残す。 */
   skipped: Skipped[];
 }
 
@@ -91,7 +91,7 @@ export async function main(
   // そのまま素通りし、falsy なので robots が一度も読まれない。
   //
   // 実測で踏んだ: `Disallow: /links/hidden` のページが取り込まれ、**クロールは成功し、
-  // アーカイブも正常に見えた**。meadow の fixture が無ければ気づけなかった。
+  // アーカイブも正常に見えた**。capture-fixtures の fixture が無ければ気づけなかった。
   const respectRobots = respect_robots ?? true;
 
   const byHost = new Map<string, Candidate[]>();
@@ -108,7 +108,7 @@ export async function main(
     const first = list[0];
     if (first === undefined) continue;
     // scheme は最初の URL から取る。同じホストで混在していれば、そちらは別の
-    // origin なので既に範囲の絞り込みで落ちている (waggle 側の `inScope`)。
+    // origin なので既に範囲の絞り込みで落ちている (capture-ledger 側の `inScope`)。
     const scheme = new URL(first.url).protocol;
     const robots = respectRobots ? await fetchRobots(host, scheme) : undefined;
 

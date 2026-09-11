@@ -1,9 +1,9 @@
 /**
- * waggle に取り込みを 1 回起こし、終わるまで見届ける。
+ * capture-ledger に取り込みを 1 回起こし、終わるまで見届ける。
  *
- * Windmill が決めるのは「いつ」だけ。「何を・どう投げるか」は waggle の側にある
- * (対象の一覧は `capture_targets`、取り込む形式は `WAGGLE_CAPTURE_FORMATS`)。
- * ここから渡せるのは `limit` だけで、それも省ける —— 知らない鍵を送ると waggle は
+ * Windmill が決めるのは「いつ」だけ。「何を・どう投げるか」は capture-ledger の側にある
+ * (対象の一覧は `capture_targets`、取り込む形式は `CAPTURE_LEDGER_CAPTURE_FORMATS`)。
+ * ここから渡せるのは `limit` だけで、それも省ける —— 知らない鍵を送ると capture-ledger は
  * 400 を返す。
  *
  * ## なぜ「クロール」なのか
@@ -23,7 +23,7 @@
  *
  * ## 409 は失敗ではない
  *
- * waggle は走行中の 2 本目を 409 で拒む (構造的に 1 本しか走れない)。これは
+ * capture-ledger は走行中の 2 本目を 409 で拒む (構造的に 1 本しか走れない)。これは
  * 「今回は見送る」であって異常ではないので、**緑で終わる**。再試行してもいけない ——
  * 走っている 1 本が終わるまで、何度投げても同じ答えが返るだけ。
  *
@@ -59,7 +59,7 @@ const POLL_INTERVAL_MS = 15_000;
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * 本文を必ず読んでから投げる。status だけにすると、waggle が返している理由
+ * 本文を必ず読んでから投げる。status だけにすると、capture-ledger が返している理由
  * (`{"error":"..."}`) が消えて「404 でした」しか残らない。
  */
 const failure = async (res: Response, what: string): Promise<Error> => {
@@ -68,7 +68,7 @@ const failure = async (res: Response, what: string): Promise<Error> => {
     res.status === 401
       ? " —— トークンが古いかもしれません (issuer を再起動しましたか)"
       : res.status === 404
-        ? " —— submitter の付与がありますか (waggle: pnpm run fga:grant submitter <sub> <org>)"
+        ? " —— submitter の付与がありますか (capture-ledger: pnpm run fga:grant submitter <sub> <org>)"
         : "";
   return new Error(`${what} → ${String(res.status)} ${body.slice(0, 300)}${hint}`);
 };
@@ -93,7 +93,7 @@ export async function main(
   const started = await fetch(`${waggle_url}/api/crawls`, {
     method: "POST",
     headers,
-    // `fromTargets` が「登録済みの一覧を全部」。深さは waggle が 0 にする。
+    // `fromTargets` が「登録済みの一覧を全部」。深さは capture-ledger が 0 にする。
     body: JSON.stringify({ fromTargets: limit === undefined ? {} : { limit } }),
   });
 
@@ -112,7 +112,7 @@ export async function main(
   const deadline = Date.now() + timeout_ms;
   for (;;) {
     if (Date.now() > deadline) {
-      // 走ったまま残る。ここで殺す術は無い (waggle に中断の口が無い)。
+      // 走ったまま残る。ここで殺す術は無い (capture-ledger に中断の口が無い)。
       throw new Error(
         `${crawlId} が ${String(Math.round(timeout_ms / 60000))} 分で終わりませんでした。` +
           " まだ走っているかもしれません —— GET /api/crawls/:id で見てください",
@@ -135,18 +135,18 @@ export async function main(
 
     // **知らない値を「成功」に落とさない。**
     //
-    // ここが無いと、waggle 側の field 名が変わっただけで `crawl.state` が
+    // ここが無いと、capture-ledger 側の field 名が変わっただけで `crawl.state` が
     // `undefined` になり、上の 2 つの比較を素通りして succeeded を返す ——
     // 走行中でも失敗でも「成功」と報告することになる。日次の実行はここでしか
     // 成否を決めていないので、静かに間違えると誰も気づかない。
     //
-    // 線の形を守っているものは他に無い: waggle 側に response schema は無く、
+    // 線の形を守っているものは他に無い: capture-ledger 側に response schema は無く、
     // こちらは `as CrawlState` の素のキャスト。**この 1 つが唯一の砦。**
     // (`runs.status` → `runs.state` の改名を捕まえたのがこれ。)
     if (crawl.state !== "succeeded") {
       throw new Error(
         `${crawlId}: 知らない状態「${String(crawl.state)}」が返りました。` +
-          " waggle の /api/crawls/:id が返す field 名が変わっていませんか",
+          " capture-ledger の /api/crawls/:id が返す field 名が変わっていませんか",
       );
     }
 
