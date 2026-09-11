@@ -50,7 +50,7 @@ pnpm run check       # format / env / typecheck / 単体
 
 見ているのは 3 つ:
 
-1. **meadow が `/links/hidden` を一度も受け取っていない**こと。robots.txt が禁じている
+1. **capture-fixtures が `/links/hidden` を一度も受け取っていない**こと。robots.txt が禁じている
    ページで、判定は**相手のリクエストログ**から採る —— 台帳は「記録したこと」しか
    言わない。
 2. クロールが成功し、1 ページ以上取り込んでいること
@@ -58,7 +58,7 @@ pnpm run check       # format / env / typecheck / 単体
    終わっている証拠
 
 `plan_level.ts` の `?? true` を消して配備すると、**単体と e2e が両方赤くなり**、
-e2e のほうは meadow が禁じられたページを受け取ったことを示す。この対は一度わざと
+e2e のほうは capture-fixtures が禁じられたページを受け取ったことを示す。この対は一度わざと
 確かめてある: 片方しか赤くならないなら、もう片方は見ているつもりで見ていない。
 
 ## 日次のループは推測しない

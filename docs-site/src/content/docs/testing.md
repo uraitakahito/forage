@@ -52,7 +52,7 @@ run endpoint — because the point is to carry the arguments waggle actually sen
 
 It asserts three things:
 
-1. **meadow never received `/links/hidden`**, which its robots.txt disallows. The
+1. **capture-fixtures never received `/links/hidden`**, which its robots.txt disallows. The
    verdict comes from the _other end's_ request log, because the ledger can only
    say what it recorded.
 2. the crawl succeeded and captured at least one page
@@ -60,7 +60,7 @@ It asserts three things:
    the flow
 
 Breaking `?? true` in `plan_level.ts` and deploying turns **both** the unit test
-and the e2e red, and the e2e shows meadow receiving the forbidden page. That pair
+and the e2e red, and the e2e shows capture-fixtures receiving the forbidden page. That pair
 was checked once on purpose: if only one layer goes red, the other is watching
 something it thinks it is watching and is not.
 

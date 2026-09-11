@@ -6,10 +6,10 @@
  *
  * 契約の正は browserhive だが、**waggle が既にその番人をしている** ——
  * `.upstream/browserhive` の submodule を持ち、`proto:check` が CI で差分を検出する。
- * forage が browserhive を直接見に行くと、鎖が 2 本になって、waggle が上げていないのに
- * forage だけ新しい、という状態が作れてしまう。
+ * capture-scheduler が browserhive を直接見に行くと、鎖が 2 本になって、waggle が上げていないのに
+ * capture-scheduler だけ新しい、という状態が作れてしまう。
  *
- * 鎖は 1 本にする: browserhive → (waggle の proto:check) → waggle → (これ) → forage。
+ * 鎖は 1 本にする: browserhive → (waggle の proto:check) → waggle → (これ) → capture-scheduler。
  *
  * ## これが無いと何が起きるか
  *

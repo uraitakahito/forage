@@ -37,7 +37,7 @@ const CHECKS = [
   {
     name: "windmill",
     where: "127.0.0.1:8000",
-    need: "forage: container-compose up -d -b",
+    need: "capture-scheduler: container-compose up -d -b",
     probe: () => answers("http://127.0.0.1:8000/api/version"),
   },
   {
@@ -53,10 +53,10 @@ const CHECKS = [
     probe: () => answers("http://127.0.0.1:9099/.well-known/openid-configuration"),
   },
   {
-    name: "meadow",
-    where: "meadow.waggle:8080",
-    need: "waggle: container-compose --profile meadow up -d -b",
-    probe: () => portOpen("meadow.waggle", 8080),
+    name: "capture-fixtures",
+    where: "capture-fixtures.waggle:8080",
+    need: "waggle: container-compose --profile capture-fixtures up -d -b",
+    probe: () => portOpen("capture-fixtures.waggle", 8080),
   },
 ];
 

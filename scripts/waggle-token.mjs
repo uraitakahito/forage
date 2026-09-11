@@ -84,7 +84,7 @@ const mintToken = async () => {
  */
 const upsertVariable = async (token, path, value, isSecret) => {
   const workspace = windmillWorkspace();
-  const body = { path, value, is_secret: isSecret, description: "forage が設定" };
+  const body = { path, value, is_secret: isSecret, description: "capture-scheduler が設定" };
   try {
     await windmillFetch(`/api/w/${workspace}/variables/create`, {
       token,
