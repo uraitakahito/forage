@@ -20,11 +20,16 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       # ステップを個別に並べているのは、どれが落ちたかを GitHub の UI で
       # 一目で分かるようにするため。`pnpm run check` を 1 行で呼ぶと、
       # 最初に落ちた 1 つの後ろが全部見えなくなる。
+      #
+      # **並べる以上、package.json の `check` と二重に書くことになる。** 片方だけ
+      # 直すと片側でしか走らない検査ができるので、一致は下の check:ci-parity が
+      # 機械で禁じる —— 顔ぶれ・並び・script でない step の 3 つを見る。
       - name: Format check
         run: pnpm run format:check
 
@@ -47,5 +52,8 @@ jobs:
 
       # compose が壊れていないこと。container-compose は CI に無いので、
       # YAML として読めることだけを見る。
+      - name: CI と check の一覧が一致しているか
+        run: pnpm run check:ci-parity
+
       - name: Parse docker-compose.yml
         run: node -e "const {parse}=require('yaml');const fs=require('fs');const d=parse(fs.readFileSync('docker-compose.yml','utf8'));if(d.name!=='forage')throw new Error('project 名が forage でない');if(!d.services.windmill)throw new Error('windmill サービスが無い');console.log('ok:',Object.keys(d.services).join(', '))"
