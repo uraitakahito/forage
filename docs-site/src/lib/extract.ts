@@ -1,16 +1,16 @@
 /**
  * The one place documentation pulls facts out of the source.
  *
- * meadow only needs a single extractor — `// #region` snippets, so a page can
+ * capture-scheduler only needs a single extractor — `// #region` snippets, so a page can
  * show real code rather than a copy that quietly drifts. BrowserHive's version
- * of this file also builds a glossary and type tables via ts-morph; meadow has
+ * of this file also builds a glossary and type tables via ts-morph; capture-scheduler has
  * neither a glossary nor an interface worth tabulating, so this reads the file
  * directly and drops the dependency.
  */
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-// The meadow root. `docs-site` sits directly under it, and every script
+// The capture-scheduler root. `docs-site` sits directly under it, and every script
 // (astro dev/build, node) runs with `docs-site` as its cwd — so the parent is
 // the repo. `import.meta.url` is not usable here: the astro build bundles this
 // file and the URL becomes a path inside `dist`.
@@ -29,7 +29,7 @@ const ROOT = resolve(process.cwd(), "..");
  *          `[ERROR] [starlight-docs-loader] Error rendering …`, and the build
  *          finishes with exit 0 and "Complete!".
  *
- * Every page in meadow is .md, so here the build is not a guard at all. The
+ * Every page in capture-scheduler is .md, so here the build is not a guard at all. The
  * one that holds the line is scripts/check-doc-refs.mjs, which exits non-zero
  * for both kinds. `pnpm run site:check` runs both; the workflows run
  * `site:check`, never `site:build` alone.

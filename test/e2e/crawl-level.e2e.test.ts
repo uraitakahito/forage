@@ -28,15 +28,15 @@ import { describe, it, expect, beforeAll } from "vitest";
  * 食い違いを隠す。CLI も無いので CI にも載らない (`wmill lint` は引数名の綴り違いも
  * 存在しない script path も素通しすることを確認済み)。
  *
- * ## 判定は meadow のリクエストログで採る
+ * ## 判定は capture-fixtures のリクエストログで採る
  *
  * 台帳は「記録したこと」しか言わない。**相手が何を受け取ったか**は相手しか知らない。
  */
 
 const WAGGLE = process.env["E2E_WAGGLE_URL"] ?? "http://127.0.0.1:7070";
 const ISSUER = process.env["E2E_ISSUER_URL"] ?? "http://127.0.0.1:9099";
-/** waggle のスタックの meadow。コンテナからも host からも同じ名前で引ける。 */
-const MEADOW = process.env["E2E_MEADOW_URL"] ?? "http://meadow.waggle:8080";
+/** waggle のスタックの capture-fixtures。コンテナからも host からも同じ名前で引ける。 */
+const FIXTURES = process.env["E2E_FIXTURES_URL"] ?? "http://capture-fixtures.waggle:8080";
 
 /** 取り込みを起こせる主体。waggle 側で `submitter` の付与が要る。 */
 const SUBJECT = process.env["E2E_SUBJECT"] ?? "e2e";
@@ -61,17 +61,17 @@ beforeAll(async () => {
 
 describe("クロールが flow を通って索引まで終わる", () => {
   it("robots が禁じたページに触れず、取り込み、検索に出る", async () => {
-    // meadow のリクエストログを白紙に戻す。ここから先に届いたものだけを見る。
-    await fetch(`${MEADOW}/__reset`, { method: "POST" });
+    // capture-fixtures のリクエストログを白紙に戻す。ここから先に届いたものだけを見る。
+    await fetch(`${FIXTURES}/__reset`, { method: "POST" });
 
     const started = await fetch(`${WAGGLE}/api/crawls`, {
       method: "POST",
       headers: { ...auth(), "content-type": "application/json" },
       body: JSON.stringify({
-        seeds: [`${MEADOW}/links/hub`],
+        seeds: [`${FIXTURES}/links/hub`],
         maxDepth: 1,
         maxPages: 5,
-        // meadow の robots.txt は Crawl-delay: 3 を宣言している。短い値を渡して、
+        // capture-fixtures の robots.txt は Crawl-delay: 3 を宣言している。短い値を渡して、
         // 長いほうが採られること (= robots が実際に読まれていること) も同時に効かせる。
         perHostDelayMs: 500,
       }),
@@ -110,12 +110,12 @@ describe("クロールが flow を通って索引まで終わる", () => {
     expect(state, "クロールが終わらなかった").not.toBe("running");
 
     // ── ① robots が守られたか ──────────────────────────────────────
-    // meadow の /robots.txt は /links/hidden を Disallow している。**meadow 自身が
+    // capture-fixtures の /robots.txt は /links/hidden を Disallow している。**capture-fixtures 自身が
     // 受け取っていないこと**を見る —— 台帳を見ても「記録しなかった」としか言えない。
     //
     // これを守っているのは `plan_level.ts` の `?? true` **1 か所だけ**。
     // schema の `default: true` は webhook 実行では埋まらないので効いていない。
-    const counts = (await json(await fetch(`${MEADOW}/__request-counts`))) as Record<
+    const counts = (await json(await fetch(`${FIXTURES}/__request-counts`))) as Record<
       string,
       number
     >;

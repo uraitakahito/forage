@@ -11,7 +11,7 @@ import { defineConfig } from "vitest/config";
  * 実際、`host_parallelism` を camelCase で書いて null が届いた事故も、schema の
  * 既定値が webhook 実行では埋まらない事故も、単体では 1 つも赤くならなかった。
  *
- * e2e を CI に載せないのは、Windmill・waggle・browserhive・meadow・OpenSearch が
+ * e2e を CI に載せないのは、Windmill・waggle・browserhive・capture-fixtures・OpenSearch が
  * 揃って動いている必要があるから。手で `pnpm run test:e2e`。
  */
 export default defineConfig({

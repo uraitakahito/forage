@@ -78,7 +78,7 @@ const ensureWorkspace = async (token, id) => {
  * ログアウトや期限で消えるから。ここで作るのは明示的に消すまで残るもの。
  */
 const createToken = async (token) => {
-  const label = "forage";
+  const label = "capture-scheduler";
   const existing = await windmillFetch("/api/users/tokens/list", { token });
   if (Array.isArray(existing) && existing.some((t) => t.label === label)) {
     process.stderr.write(

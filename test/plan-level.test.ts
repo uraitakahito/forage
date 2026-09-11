@@ -9,7 +9,7 @@ import { main, type Candidate } from "../windmill/f/waggle/plan_level.js";
  *
  * ここに試験が無かった間に、`respect_robots` が `null` で届いて robots が一度も
  * 読まれない状態が出荷された。**クロールは成功し、アーカイブも正常に見えた** ——
- * meadow のフィクスチャで実際に取りに行った先を見るまで気づけなかった。
+ * capture-fixtures のフィクスチャで実際に取りに行った先を見るまで気づけなかった。
  */
 
 /** robots.txt を返す fetch。呼ばれた URL を記録する。 */

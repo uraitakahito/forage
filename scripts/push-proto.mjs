@@ -37,7 +37,7 @@ const PROTO_PATH = "u/admin/browserhive_proto";
 /** `waggle-token.mjs` と同じ形 —— create が 400 なら update に落ちる。 */
 const upsertResource = async (token, path, value) => {
   const workspace = windmillWorkspace();
-  const body = { path, value, resource_type: "state", description: "forage が設定" };
+  const body = { path, value, resource_type: "state", description: "capture-scheduler が設定" };
   try {
     await windmillFetch(`/api/w/${workspace}/resources/create`, { token, method: "POST", body });
     return "作成";
