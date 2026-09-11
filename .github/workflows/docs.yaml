@@ -2,8 +2,8 @@ name: docs
 
 # docs-site を GitHub Pages へ配信する。
 #
-#   /forage/      → English
-#   /forage/ja/   → 日本語
+#   /capture-scheduler/      → English
+#   /capture-scheduler/ja/   → 日本語
 #
 # Security:
 #   - 引き金は main への push と手動のみ。**pull_request では走らせない** ——

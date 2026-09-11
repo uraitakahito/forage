@@ -1,8 +1,8 @@
-# forage
+# capture-scheduler
 
 Starts [waggle](https://github.com/uraitakahito/waggle)'s captures **on time**.
 waggle exposes `POST /api/crawls` so that "when to run" can live outside it —
-forage is that outside: one [Windmill](https://www.windmill.dev/) instance, a
+capture-scheduler is that outside: one [Windmill](https://www.windmill.dev/) instance, a
 cron expression, and a script that calls the endpoint. It also drives the
 link-following crawl, one level per flow execution.
 
@@ -15,12 +15,12 @@ Everything — bringing the stack up, how the crawl stays polite, what Windmill'
 Community Edition silently does not enforce, and how the tests are split — lives
 on the docs site:
 
-- **English** — <https://uraitakahito.github.io/forage/>
-- **日本語** — <https://uraitakahito.github.io/forage/ja/>
+- **English** — <https://uraitakahito.github.io/capture-scheduler/>
+- **日本語** — <https://uraitakahito.github.io/capture-scheduler/ja/>
 
 ## Related Projects
 
-- [waggle](https://github.com/uraitakahito/waggle) — decides what to capture and talks to BrowserHive; forage only decides when.
+- [waggle](https://github.com/uraitakahito/waggle) — decides what to capture and talks to BrowserHive; capture-scheduler only decides when.
 - [BrowserHive](https://github.com/uraitakahito/browserhive) — the web-capture server at the far end of the chain.
 
 ## License
