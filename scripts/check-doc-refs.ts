@@ -38,17 +38,18 @@
  */
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
+import { repoRoot } from "./env.js";
 
-const ROOT = resolve(import.meta.dirname, "..");
+const ROOT = repoRoot();
 const DOCS = resolve(ROOT, "docs-site/src/content/docs");
 const JA = resolve(DOCS, "ja");
 /** ソースの根。capture-ledger / capture-fixtures はここが `src`。 */
 const SOURCE_ROOT = "windmill/f";
 
 /** 配下のページを再帰で集める。`ja/` は呼ぶ側が分ける。 */
-const pagesIn = (dir, skipJa = false) => {
-  const out = [];
-  const walk = (current) => {
+const pagesIn = (dir: string, skipJa = false): string[] => {
+  const out: string[] = [];
+  const walk = (current: string): void => {
     for (const entry of readdirSync(current, { withFileTypes: true })) {
       const full = join(current, entry.name);
       if (entry.isDirectory()) {
@@ -63,7 +64,7 @@ const pagesIn = (dir, skipJa = false) => {
   return out;
 };
 
-const problems = [];
+const problems: string[] = [];
 
 // ── 1. 訳の対応 ──────────────────────────────────────────────────────
 const en = pagesIn(DOCS, true);

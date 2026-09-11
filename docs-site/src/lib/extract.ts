@@ -30,7 +30,7 @@ const ROOT = resolve(process.cwd(), "..");
  *          finishes with exit 0 and "Complete!".
  *
  * Every page in capture-scheduler is .md, so here the build is not a guard at all. The
- * one that holds the line is scripts/check-doc-refs.mjs, which exits non-zero
+ * one that holds the line is scripts/check-doc-refs.ts, which exits non-zero
  * for both kinds. `pnpm run site:check` runs both; the workflows run
  * `site:check`, never `site:build` alone.
  *

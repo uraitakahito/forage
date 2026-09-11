@@ -15,7 +15,7 @@ export default defineConfig({
       customCss: ["./src/styles/tables.css"],
       // 英語が root (接頭辞なし)、日本語は /ja/ 配下。訳が無いページは
       // Starlight が黙って英語に落とす —— **半分だけ訳したサイトも緑でビルドできる**
-      // ので、対応の検査は scripts/check-doc-refs.mjs が持つ。
+      // ので、対応の検査は scripts/check-doc-refs.ts が持つ。
       defaultLocale: "root",
       locales: {
         root: { label: "English", lang: "en" },

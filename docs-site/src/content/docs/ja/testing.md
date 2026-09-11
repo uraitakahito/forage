@@ -9,7 +9,7 @@ pnpm run test:e2e    # e2e 1 件。スタックが要る
 pnpm run check       # format / env / typecheck / 単体
 ```
 
-`pretest:e2e` が先に `scripts/check-stack.mjs` を走らせ、足りないものを**全部まとめて**
+`pretest:e2e` が先に `scripts/check-stack.ts` を走らせ、足りないものを**全部まとめて**
 名指しする。vitest の外に置いてあるのは意図的 —— global setup が throw すると vitest は
 必ず「No test files found, exiting with code 1」を先に出し、中に書いたどんなメッセージも
 その後ろに隠れるため。

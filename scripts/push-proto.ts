@@ -25,17 +25,20 @@
  * 秘密ではないので伏せない —— 伏せるとログから消えて、食い違ったときに読めなくなる。
  */
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { guardEnv, windmillFetch, windmillWorkspace } from "./env.mjs";
+import { join } from "node:path";
+import { guardEnv, repoRoot, windmillFetch, windmillWorkspace } from "./env.js";
 
 guardEnv();
 
-const here = dirname(fileURLToPath(import.meta.url));
 const PROTO_PATH = "u/admin/browserhive_proto";
 
-/** `capture-ledger-token.mjs` と同じ形 —— create が 400 なら update に落ちる。 */
-const upsertResource = async (token, path, value) => {
+/** `capture-ledger-token.ts` と同じ形 —— create が 400 なら update に落ちる。 */
+const upsertResource = async (
+  token: string,
+  path: string,
+  // resource の中身は endpoint が JSON として受けるので、形は呼ぶ側が決める。
+  value: unknown,
+): Promise<string> => {
   const workspace = windmillWorkspace();
   const body = { path, value, resource_type: "state", description: "capture-scheduler が設定" };
   try {
@@ -60,7 +63,7 @@ const main = async () => {
   }
 
   const proto = readFileSync(
-    join(here, "..", "proto", "browserhive", "v1", "capture.proto"),
+    join(repoRoot(), "proto", "browserhive", "v1", "capture.proto"),
     "utf8",
   );
   const action = await upsertResource(windmillToken, PROTO_PATH, { proto });

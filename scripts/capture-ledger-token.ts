@@ -18,7 +18,7 @@
  * 再現できる)。**issuer を再起動したら、このスクリプトも実行し直すこと。**
  * 古いトークンは 401 になる。
  */
-import { guardEnv, optional, ledgerApiUrl, windmillFetch, windmillWorkspace } from "./env.mjs";
+import { guardEnv, optional, ledgerApiUrl, windmillFetch, windmillWorkspace } from "./env.js";
 
 guardEnv();
 
@@ -85,7 +85,12 @@ const mintToken = async () => {
  * の順で試す。逆順 (更新 → 駄目なら作る) にしないのは、初回の一番よくある道で
  * 必ず 404 を 1 回踏むことになるため。
  */
-const upsertVariable = async (token, path, value, isSecret) => {
+const upsertVariable = async (
+  token: string,
+  path: string,
+  value: string,
+  isSecret: boolean,
+): Promise<string> => {
   const workspace = windmillWorkspace();
   const body = { path, value, is_secret: isSecret, description: "capture-scheduler が設定" };
   try {
