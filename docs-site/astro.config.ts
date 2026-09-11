@@ -36,6 +36,7 @@ export default defineConfig({
         { label: "Quickstart", translations: { ja: "クイックスタート" }, slug: "quickstart" },
         { label: "Following links", translations: { ja: "リンクを辿る" }, slug: "crawl" },
         { label: "Schedule", translations: { ja: "いつ走るか" }, slug: "schedule" },
+        { label: "The UI", translations: { ja: "管理画面" }, slug: "windmill-ui" },
         {
           label: "Windmill CE",
           translations: { ja: "Windmill CE" },
