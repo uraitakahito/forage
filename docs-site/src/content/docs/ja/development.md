@@ -20,6 +20,26 @@ pnpm run windmill:push   # git を正として UI に反映する
 `windmill/wmill.yaml` は `includeSchedules: true` にしてある。秘密は同期しない
 （`skipSecrets`）。`u/admin/waggle_token` は `scripts/capture-ledger-token.mjs` が API 経由で入れる。
 
+## スクリーンショットを撮り直す
+
+[管理画面](/windmill-ui/) の PNG は `scripts/docs-shots.mjs` の生成物。手で撮った絵は
+無い。UI が変わったら（＝ `docker-compose.yml` の Windmill の pin を上げたら）撮り直す。
+`check-doc-refs` が「compose の pin と `shots-manifest.json` の版が食い違っていたら落とす」
+ので、忘れても CI が止める。
+
+```sh
+# 1. スタックを上げ、run 履歴を作る（下の 3 種が要る。無いと script が止まる）
+./setup.sh && container-compose up -d -b   # + capture-ledger 側の API / issuer
+#    - crawl_level の成功が 1 本
+#    - crawl_host の失敗（browserhive_proto が無い状態で 1 本）
+#    - report_level の失敗（何らかの失敗が 1 本）
+# 2. 撮る（Chromium は初回だけ手で取得。puppeteer は docs 撮影専用）
+./node_modules/.bin/puppeteer browsers install chrome
+node scripts/docs-shots.mjs
+```
+
+`puppeteer` を消すときは `package.json` の `//devDependencies` の註も消すこと。
+
 ## どこに何があるか
 
 | path                                           | 何か                                                                             |
