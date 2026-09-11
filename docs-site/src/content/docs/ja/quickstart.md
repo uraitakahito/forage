@@ -6,7 +6,7 @@ description: Windmill を立て、waggle 用のトークンを渡し、UI を開
 ## 立ち上げる
 
 ```sh
-sudo container system dns create forage   # マシンごとに 1 度だけ
+sudo container system dns create capture-scheduler   # マシンごとに 1 度だけ
 ./setup.sh
 container-compose up -d
 pnpm install

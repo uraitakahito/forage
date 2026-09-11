@@ -4,7 +4,7 @@ description: How one crawl level runs — grouped by host, parallel across hosts
 ---
 
 waggle's `POST /api/crawls` takes seed URLs — or `fromTargets`, the enabled rows
-of `capture_targets` — and hands forage **one level at a time**. The flow is
+of `capture_targets` — and hands capture-scheduler **one level at a time**. The flow is
 `f/waggle/crawl_level`; one execution is one level.
 
 ```

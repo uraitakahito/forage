@@ -56,4 +56,4 @@ jobs:
         run: pnpm run check:ci-parity
 
       - name: Parse docker-compose.yml
-        run: node -e "const {parse}=require('yaml');const fs=require('fs');const d=parse(fs.readFileSync('docker-compose.yml','utf8'));if(d.name!=='forage')throw new Error('project 名が forage でない');if(!d.services.windmill)throw new Error('windmill サービスが無い');console.log('ok:',Object.keys(d.services).join(', '))"
+        run: node -e "const {parse}=require('yaml');const fs=require('fs');const d=parse(fs.readFileSync('docker-compose.yml','utf8'));if(d.name!=='capture-scheduler')throw new Error('project 名が capture-scheduler でない');if(!d.services.windmill)throw new Error('windmill サービスが無い');console.log('ok:',Object.keys(d.services).join(', '))"

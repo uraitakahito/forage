@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #
-# setup.sh —— forage のローカル開発環境を用意する。
+# setup.sh —— capture-scheduler のローカル開発環境を用意する。
 #
 # ここでやること:
 #   1. Apple Container の道具が入っているかを見る。
-#   2. `forage` の DNS ドメインが登録されていなければ、続けずに止まる。
+#   2. `capture-scheduler` の DNS ドメインが登録されていなければ、続けずに止まる。
 #   3. .env.example を写して .env を作る。
 #
 # 行の範囲は下の sed に直書きなので、ヘッダを増減させたらここも直すこと。
@@ -31,11 +31,11 @@ done
 
 # DNS ドメインが無いと container-compose は real-DNS モードに入らず、各コンテナの
 # 中の /etc/hosts を書き換える方式に落ちる。それは静かに失敗しうるので、ここで止める。
-if ! container system dns ls 2>/dev/null | grep -qx "forage"; then
+if ! container system dns ls 2>/dev/null | grep -qx "capture-scheduler"; then
   cat >&2 <<'MSG'
-DNS ドメイン "forage" が登録されていません。1 度だけ、手で作ってください:
+DNS ドメイン "capture-scheduler" が登録されていません。1 度だけ、手で作ってください:
 
-  sudo container system dns create forage
+  sudo container system dns create capture-scheduler
 
 (sudo が要るのでこのスクリプトからは実行しません。)
 MSG

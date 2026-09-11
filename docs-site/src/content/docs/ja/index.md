@@ -1,21 +1,21 @@
 ---
-title: forage
+title: capture-scheduler
 description: waggle の取り込みを時刻どおりに起こす —— 「いつ」だけを決め、「何を」は決めない Windmill
 ---
 
-forage は [waggle](https://uraitakahito.github.io/waggle/) の取り込みを
+capture-scheduler は [waggle](https://uraitakahito.github.io/waggle/) の取り込みを
 **時刻どおりに起こす**。仕事はそれだけ。
 
 waggle には `POST /api/crawls` がある —— 「いつ走らせるか」を外に出すための口で、
-forage がその外側。[Windmill](https://www.windmill.dev/) を 1 つ立て、cron で
+capture-scheduler がその外側。[Windmill](https://www.windmill.dev/) を 1 つ立て、cron で
 その口を叩く。
 
 ## 境界
 
-|                     |                                                                                 |
-| ------------------- | ------------------------------------------------------------------------------- |
-| **forage が決める** | いつ走らせるか                                                                  |
-| **waggle が決める** | 何を・どう投げるか（対象は `capture_targets`、形式は `WAGGLE_CAPTURE_FORMATS`） |
+|                                |                                                                                 |
+| ------------------------------ | ------------------------------------------------------------------------------- |
+| **capture-scheduler が決める** | いつ走らせるか                                                                  |
+| **waggle が決める**            | 何を・どう投げるか（対象は `capture_targets`、形式は `WAGGLE_CAPTURE_FORMATS`） |
 
 だから、この repo に **URL は 1 つも書いていない**。書いてあるのは cron 式だけ。
 
@@ -33,8 +33,8 @@ waggle に頼む（`fromTargets`）。深さは 0 —— 一覧は取り込む�
 間隔を持たない深さ 0 のクロールだったので、クロールに畳んだ（`POST /api/runs` は
 もう無い）。日次の取り込みにも、同じホストへの間隔が効くようになっている。
 
-段を回すのも forage —— 自分が起こしていないクロールも含めて、waggle が **1 段ずつ**
-渡し、forage は見つけたものを返す。[リンクを辿る](/crawl/) を見ること。
+段を回すのも capture-scheduler —— 自分が起こしていないクロールも含めて、waggle が **1 段ずつ**
+渡し、capture-scheduler は見つけたものを返す。[リンクを辿る](/crawl/) を見ること。
 
 面白い制約が集まっているのはこちら —— **他人のサーバを繰り返し叩く**のがこの道だから。
 

@@ -28,7 +28,7 @@ fine here: waggle refuses a second concurrent crawl with **409**, and
 until the crawl in flight ends, every attempt gets the same answer.
 
 So however tightly the schedule is packed, exactly one crawl is ever in flight.
-The guarantee lives in waggle's partial unique index, not in forage — which is
+The guarantee lives in waggle's partial unique index, not in capture-scheduler — which is
 the right place for it, because an application-side flag breaks silently the day
 a second process appears.
 
