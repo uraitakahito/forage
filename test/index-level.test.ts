@@ -4,13 +4,13 @@ import { main } from "../windmill/f/waggle/index_level.js";
 /**
  * 索引の step。**判断はゼロで、渡すのは crawl_id だけ** —— 押さえるのはその形。
  *
- * どの archive がまだ索引されていないかは waggle が知っている
+ * どの archive がまだ索引されていないかは capture-ledger が知っている
  * (`archives.indexed_at IS NULL`)。id の一覧をここで組み立てる形に変わったら、
  * 「何を索引すべきか」の判断が試験の無い場所へ移ったということ。
  */
 
 const VARS: Record<string, string> = {
-  "u/admin/waggle_api_url": "http://waggle:7070",
+  "u/admin/waggle_api_url": "http://capture-ledger:7070",
   "u/admin/waggle_token": "tok",
 };
 
@@ -40,12 +40,12 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("waggle への頼み方", () => {
+describe("capture-ledger への頼み方", () => {
   it("crawl_id だけを URL に載せ、本文は送らない", async () => {
     const seen = responding(202, { indexed: 3, pages: 3 });
     await main("c-1");
 
-    expect(seen[0]!.url).toBe("http://waggle:7070/api/crawls/c-1/index");
+    expect(seen[0]!.url).toBe("http://capture-ledger:7070/api/crawls/c-1/index");
     expect(seen[0]!.init.method).toBe("POST");
     expect(seen[0]!.init.body).toBeUndefined();
   });
@@ -70,7 +70,7 @@ describe("waggle への頼み方", () => {
 
 describe("索引が無い配備", () => {
   it("404 は飛ばす（投げない）", async () => {
-    // `WAGGLE_OPENSEARCH_URL` を設定していない waggle は口ごと出さない。
+    // `CAPTURE_LEDGER_OPENSEARCH_URL` を設定していない capture-ledger は口ごと出さない。
     // それは正しい答えなので、一律に投げるとクロールが毎回赤くなる。
     responding(404, { error: "not found" });
     await expect(main("c-1")).resolves.toEqual({ indexed: 0, pages: 0, skipped: true });

@@ -28,7 +28,7 @@ implemented in `worker_flow.rs` in the OSS build, via the `suspend` column on
 
 A minimal flow with `stop_after_if` **ran 643 iterations** before it was killed
 by hand. No mechanism that limits load on someone else's server is built on top
-of a loop that can do that; `crawl_level` runs exactly one level and waggle
+of a loop that can do that; `crawl_level` runs exactly one level and capture-ledger
 decides whether there is another.
 
 ## Schema defaults are UI-only

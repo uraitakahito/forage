@@ -4,7 +4,7 @@
  *
  * compose に書けない仕事なので、ここに置いている —— container-compose には
  * 使い捨てのサービスが無い (subcommand は up / down / build / version の 4 つだけ)。
- * waggle の `scripts/fga-migrate.mjs` と同じ立場。
+ * capture-ledger の `scripts/fga-migrate.mjs` と同じ立場。
  *
  * **token は .env に書かず、貼れる形で標準出力に出す。** `fga:deploy` と同じ作法。
  * 書き込む側にすると、`.env` を持つのが人間なのかスクリプトなのかが曖昧になる。

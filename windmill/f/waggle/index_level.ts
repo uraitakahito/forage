@@ -1,19 +1,19 @@
 /**
- * この段で台帳に載ったぶんを、全文検索の索引に載せるよう waggle に頼む。
+ * この段で台帳に載ったぶんを、全文検索の索引に載せるよう capture-ledger に頼む。
  *
  * ## ここに判断は無い
  *
- * 渡すのは `crawl_id` だけ。**どの archive がまだ索引されていないかは waggle が
+ * 渡すのは `crawl_id` だけ。**どの archive がまだ索引されていないかは capture-ledger が
  * 知っている** (`archives.indexed_at IS NULL`)。id の一覧をこちらで組み立てて渡す形も
  * 書けるが、そうすると「何を索引すべきか」の判断が **単体試験の無い場所**へ移る。
  * この repo の Windmill script は 1 本も試験を持っていないので、判断は置かない。
  *
- * 本文の取り出し (WACZ を開いて `pages.jsonl` を読む) も waggle 側。ここに置くと
+ * 本文の取り出し (WACZ を開いて `pages.jsonl` を読む) も capture-ledger 側。ここに置くと
  * S3 の資格情報が Windmill にも要る。
  *
  * ## 索引が無い配備では 404 が返る
  *
- * `WAGGLE_OPENSEARCH_URL` を設定していない waggle は、この口を **そもそも出さない**。
+ * `CAPTURE_LEDGER_OPENSEARCH_URL` を設定していない capture-ledger は、この口を **そもそも出さない**。
  * それは正しい答え (その配備に検索は無い) なので、**失敗にしない** —— 404 だけは
  * 通し、それ以外の失敗は投げる。ここで一律に投げると、検索を使わない配備で
  * クロールの flow が毎回赤くなる。
@@ -25,7 +25,7 @@ export interface IndexOutcome {
   indexed: number;
   /** そのアーカイブに含まれていたページの数。 */
   pages: number;
-  /** この配備に検索が無かった (waggle が口を出していない)。 */
+  /** この配備に検索が無かった (capture-ledger が口を出していない)。 */
   skipped: boolean;
 }
 
@@ -45,7 +45,7 @@ export async function main(crawl_id: string): Promise<IndexOutcome> {
 
   if (res.status === 404) {
     // 上の docstring のとおり。**404 は「索引が無い」とも「権限が無い」とも読める**
-    // ので、log には両方の可能性を残す —— waggle は列挙を避けるために両者を
+    // ので、log には両方の可能性を残す —— capture-ledger は列挙を避けるために両者を
     // 区別せずに答える設計 (`api/routes.ts`)。
     console.log(
       "索引の口がありません (この配備に検索が無いか、submitter の付与がありません)。飛ばします",

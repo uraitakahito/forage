@@ -41,22 +41,22 @@ const CHECKS = [
     probe: () => answers("http://127.0.0.1:8000/api/version"),
   },
   {
-    name: "waggle api",
+    name: "capture-ledger api",
     where: "127.0.0.1:7070",
-    need: "waggle: pnpm run api",
+    need: "capture-ledger: pnpm run api",
     probe: () => answers("http://127.0.0.1:7070/healthz"),
   },
   {
     name: "oidc issuer",
     where: "127.0.0.1:9099",
-    need: "waggle: pnpm run oidc:issuer （トークンの発行元。再起動すると鍵が変わる）",
+    need: "capture-ledger: pnpm run oidc:issuer （トークンの発行元。再起動すると鍵が変わる）",
     probe: () => answers("http://127.0.0.1:9099/.well-known/openid-configuration"),
   },
   {
     name: "capture-fixtures",
-    where: "capture-fixtures.waggle:8080",
-    need: "waggle: container-compose --profile capture-fixtures up -d -b",
-    probe: () => portOpen("capture-fixtures.waggle", 8080),
+    where: "capture-fixtures.capture-ledger:8080",
+    need: "capture-ledger: container-compose --profile capture-fixtures up -d -b",
+    probe: () => portOpen("capture-fixtures.capture-ledger", 8080),
   },
 ];
 

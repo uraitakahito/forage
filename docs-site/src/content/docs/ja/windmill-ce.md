@@ -25,7 +25,7 @@ worker groups も Enterprise 限定。
 
 `stop_after_if` を付けた最小の flow が、手で止めるまで **643 回回り続けた**。
 他人のサーバへの負荷を抑える仕組みを、そんなことをしうるループの上には載せない。
-`crawl_level` はきっちり 1 段で終わり、次があるかは waggle が決める。
+`crawl_level` はきっちり 1 段で終わり、次があるかは capture-ledger が決める。
 
 ## schema の既定値は UI 限定
 

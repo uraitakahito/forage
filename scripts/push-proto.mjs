@@ -18,7 +18,7 @@
  *
  * ## 生成コードを使わない理由
  *
- * waggle は 6308 行の生成クライアントを持っているが、`@grpc/proto-loader` は proto を
+ * capture-ledger は 6308 行の生成クライアントを持っているが、`@grpc/proto-loader` は proto を
  * **実行時に**読める。運ぶのが 586 行で済み、型は失うが、この用途で使う RPC は 2 つだけ
  * (`SubmitCapture` / `GetCapture`)。
  *
@@ -34,7 +34,7 @@ guardEnv();
 const here = dirname(fileURLToPath(import.meta.url));
 const PROTO_PATH = "u/admin/browserhive_proto";
 
-/** `waggle-token.mjs` と同じ形 —— create が 400 なら update に落ちる。 */
+/** `capture-ledger-token.mjs` と同じ形 —— create が 400 なら update に落ちる。 */
 const upsertResource = async (token, path, value) => {
   const workspace = windmillWorkspace();
   const body = { path, value, resource_type: "state", description: "capture-scheduler が設定" };

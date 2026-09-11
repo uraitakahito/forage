@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * waggle の dev issuer からトークンを取り、Windmill の secret 変数に入れる。
+ * capture-ledger の dev issuer からトークンを取り、Windmill の secret 変数に入れる。
  *
  * ## なぜ Windmill 自身に取りに行かせないのか
  *
@@ -18,18 +18,21 @@
  * 再現できる)。**issuer を再起動したら、このスクリプトも実行し直すこと。**
  * 古いトークンは 401 になる。
  */
-import { guardEnv, optional, waggleApiUrl, windmillFetch, windmillWorkspace } from "./env.mjs";
+import { guardEnv, optional, ledgerApiUrl, windmillFetch, windmillWorkspace } from "./env.mjs";
 
 guardEnv();
 
-const ISSUER = optional("WAGGLE_OIDC_ISSUER", "http://127.0.0.1:9099");
-const SUBJECT = optional("WAGGLE_SUBJECT", "windmill");
-const BROWSERHIVE_TARGET = optional("WAGGLE_BROWSERHIVE_TARGET", "browserhive.waggle:50051");
-const ORGANIZATIONS = optional("WAGGLE_ORGANIZATIONS", "acme")
+const ISSUER = optional("CAPTURE_LEDGER_OIDC_ISSUER", "http://127.0.0.1:9099");
+const SUBJECT = optional("CAPTURE_LEDGER_SUBJECT", "windmill");
+const BROWSERHIVE_TARGET = optional(
+  "CAPTURE_LEDGER_BROWSERHIVE_TARGET",
+  "browserhive.capture-ledger:50051",
+);
+const ORGANIZATIONS = optional("CAPTURE_LEDGER_ORGANIZATIONS", "acme")
   .split(",")
   .map((s) => s.trim())
   .filter((s) => s !== "");
-const EXPIRES_IN = optional("WAGGLE_TOKEN_EXPIRES_IN", "30d");
+const EXPIRES_IN = optional("CAPTURE_LEDGER_TOKEN_EXPIRES_IN", "30d");
 
 const TOKEN_PATH = "u/admin/waggle_token";
 const URL_PATH = "u/admin/waggle_api_url";
@@ -48,7 +51,7 @@ const TARGET_PATH = "u/admin/browserhive_target";
  * TLS のつもりの配備が平文で喋ることはない。開発のスタックは平文。
  */
 const TLS_CA_PATH = "u/admin/browserhive_tls_ca";
-const TLS_CA_PEM = optional("WAGGLE_BROWSERHIVE_TLS_CA_PEM", "");
+const TLS_CA_PEM = optional("CAPTURE_LEDGER_BROWSERHIVE_TLS_CA_PEM", "");
 
 const mintToken = async () => {
   const res = await fetch(`${ISSUER}/token`, {
@@ -64,7 +67,7 @@ const mintToken = async () => {
   if (!res.ok) {
     throw new Error(
       `${ISSUER}/token → ${String(res.status)} ${text.slice(0, 200)}\n` +
-        "  issuer は動いていますか (cd ../waggle && pnpm run oidc:issuer)",
+        "  issuer は動いていますか (cd ../capture-ledger && pnpm run oidc:issuer)",
     );
   }
   const parsed = JSON.parse(text);
@@ -112,16 +115,16 @@ const main = async () => {
 
   const jwt = await mintToken();
   const tokenAction = await upsertVariable(windmillToken, TOKEN_PATH, jwt, true);
-  const urlAction = await upsertVariable(windmillToken, URL_PATH, waggleApiUrl(), false);
+  const urlAction = await upsertVariable(windmillToken, URL_PATH, ledgerApiUrl(), false);
   const targetAction = await upsertVariable(windmillToken, TARGET_PATH, BROWSERHIVE_TARGET, false);
   const tlsAction = await upsertVariable(windmillToken, TLS_CA_PATH, TLS_CA_PEM, false);
 
   process.stderr.write(
     `${TOKEN_PATH} を${tokenAction} (sub=${SUBJECT} orgs=${ORGANIZATIONS.join(",")} exp=${EXPIRES_IN})\n` +
-      `${URL_PATH} を${urlAction} (${waggleApiUrl()})\n` +
+      `${URL_PATH} を${urlAction} (${ledgerApiUrl()})\n` +
       `${TARGET_PATH} を${targetAction} (${BROWSERHIVE_TARGET})\n` +
       `${TLS_CA_PATH} を${tlsAction} (${TLS_CA_PEM === "" ? "空 = 平文" : "CA あり"})\n\n` +
-      `付与を忘れずに:  cd ../waggle && pnpm run fga:grant submitter ${SUBJECT} ${ORGANIZATIONS[0] ?? "acme"}\n`,
+      `付与を忘れずに:  cd ../capture-ledger && pnpm run fga:grant submitter ${SUBJECT} ${ORGANIZATIONS[0] ?? "acme"}\n`,
   );
 };
 

@@ -147,7 +147,7 @@ describe("成果物の場所", () => {
   });
 
   it("空文字なら linksLocation を付けない", async () => {
-    // 空文字を成果物の場所として渡すと、waggle 側が S3 の鍵として使ってしまう。
+    // 空文字を成果物の場所として渡すと、capture-ledger 側が S3 の鍵として使ってしまう。
     const [result] = await captureHost(
       fakeClient({ links: "" }),
       "m",
@@ -207,11 +207,11 @@ describe("gRPC の誤りの見分け", () => {
    * **NOT_FOUND は「無かった」ではない。**
    *
    * BrowserHive の結果キャッシュには上限があり、15 分待つ間に押し出されうる。
-   * 取り込み自体は成功していて成果物も S3 に在るので、waggle が manifest から
+   * 取り込み自体は成功していて成果物も S3 に在るので、capture-ledger が manifest から
    * 拾い直せるように **taskId を必ず載せる**。ここを落とすと、S3 に在る成果物が
    * 永久に台帳へ入らない。
    */
-  it("NOT_FOUND は taskId 付きで返す（waggle が拾い直せる形）", async () => {
+  it("NOT_FOUND は taskId 付きで返す（capture-ledger が拾い直せる形）", async () => {
     const client = fakeClient({ getCaptureError: grpcError(5, "unknown task") });
     const [page] = await captureHost(
       client,
@@ -250,7 +250,7 @@ describe("gRPC の誤りの見分け", () => {
 
   it("投入そのものが落ちたときは taskId が無い", async () => {
     // **これは取りこぼしではない。** 投入が通っていないので id は存在しない。
-    // waggle 側も「taskId を持つもの」だけを拾い直すので、対象にならないのが正しい。
+    // capture-ledger 側も「taskId を持つもの」だけを拾い直すので、対象にならないのが正しい。
     const client = fakeClient({ failOn: ["https://example.com/a"] });
     const [page] = await captureHost(
       client,
@@ -271,12 +271,14 @@ describe("宛先の正規化", () => {
   it("scheme を落とす", () => {
     // gRPC の宛先は URL ではなく `host:port`。scheme を残したまま渡すと
     // `http` という名前の host を DNS に引きに行く。
-    expect(toTarget("http://browserhive.waggle:50051")).toBe("browserhive.waggle:50051");
+    expect(toTarget("http://browserhive.capture-ledger:50051")).toBe(
+      "browserhive.capture-ledger:50051",
+    );
     expect(toTarget("https://bh:50051")).toBe("bh:50051");
   });
 
   it("末尾のスラッシュを落とす", () => {
-    expect(toTarget("browserhive.waggle:50051/")).toBe("browserhive.waggle:50051");
+    expect(toTarget("browserhive.capture-ledger:50051/")).toBe("browserhive.capture-ledger:50051");
   });
 
   it("すでに host:port ならそのまま", () => {
@@ -287,7 +289,7 @@ describe("宛先の正規化", () => {
 describe("取り込む形式", () => {
   it("渡された 6 つをそのまま送る", async () => {
     // **6 つ全部を送る。** proto3 では未設定と false が別物で、落とすと
-    // 「指定なし」として届く。何を立てるかを決めるのは waggle 側。
+    // 「指定なし」として届く。何を立てるかを決めるのは capture-ledger 側。
     let sent: unknown;
     const client = {
       submitCapture: (req: unknown, cb: (e: unknown, r?: unknown) => void) => {
@@ -338,7 +340,7 @@ describe("成果物の送り先", () => {
 
   it("渡されたらそのまま送る", async () => {
     const seen: { req?: unknown } = {};
-    const sink = { url: "http://waggle:7070/api/sink/c1", token: "tok" };
+    const sink = { url: "http://capture-ledger:7070/api/sink/c1", token: "tok" };
 
     await captureHost(
       capturingClient(seen),

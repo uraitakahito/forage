@@ -3,7 +3,7 @@ title: Following links
 description: How one crawl level runs — grouped by host, parallel across hosts, sequential within one, with the gap after completion
 ---
 
-waggle's `POST /api/crawls` takes seed URLs — or `fromTargets`, the enabled rows
+capture-ledger's `POST /api/crawls` takes seed URLs — or `fromTargets`, the enabled rows
 of `capture_targets` — and hands capture-scheduler **one level at a time**. The flow is
 `f/waggle/crawl_level`; one execution is one level.
 
@@ -13,16 +13,16 @@ plan_level    group by host, fetch robots.txt once per host
 for-each      parallel across hosts (parallelism = host_parallelism)
   crawl_host    sequential within a host: finish → wait → next
   ↓
-report_level  report to waggle, receive the next level
+report_level  report to capture-ledger, receive the next level
   ↓
-index_level   ask waggle to index what landed in the ledger
+index_level   ask capture-ledger to index what landed in the ledger
 ```
 
-**waggle does the repeating.** This flow ends after one level. Putting the loop
+**capture-ledger does the repeating.** This flow ends after one level. Putting the loop
 in Windmill was tried: a minimal flow with `stop_after_if` **ran 643 iterations
 without stopping**. A mechanism for not overloading someone else's server does
 not belong on top of a loop that can run away. The stopping conditions live in
-waggle and have unit tests.
+capture-ledger and have unit tests.
 
 ## Politeness is enforced by the shape of the loop
 
@@ -33,7 +33,7 @@ structure:
 
 - **across hosts** — the for-loop's `parallelism`
 - **within a host** — `crawl_host` runs sequentially and waits _after_ each completion
-- **across levels** — waggle passes the time it last finished touching that host, and `plan_level` subtracts it
+- **across levels** — capture-ledger passes the time it last finished touching that host, and `plan_level` subtracts it
 
 ### The gap goes after completion, not before submission
 
@@ -75,11 +75,11 @@ settings as arguments. Windmill fills schema defaults **only for UI-triggered
 runs**, so a webhook run gets nothing — `browserhive_target` arrived `undefined`
 and the job died with "Channel target must be a string".
 
-What does arrive as arguments is what waggle decides for that crawl and always
+What does arrive as arguments is what capture-ledger decides for that crawl and always
 sends: the URLs, the delay, and `capture_formats` / `signing`.
 
 ```sh
-pnpm run windmill:waggle-token   # waggle_token / waggle_api_url /
+pnpm run windmill:capture-ledger-token   # waggle_token / waggle_api_url /
                                  # browserhive_target / browserhive_tls_ca
 pnpm run windmill:push-proto     # BrowserHive's proto (a resource)
 ```
@@ -95,5 +95,5 @@ plaintext.
 
 The proto is a **resource** rather than a variable because it is 16,315 bytes and
 the variable limit sits between 10,000 and 20,000. `pnpm run proto:check` diffs it
-against waggle's copy — a contract copied by hand rots silently, so it gets a
+against capture-ledger's copy — a contract copied by hand rots silently, so it gets a
 guard.

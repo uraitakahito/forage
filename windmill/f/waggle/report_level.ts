@@ -1,16 +1,16 @@
 /**
- * 1 段ぶんの結果を waggle に報告し、次の段があるかを受け取る。
+ * 1 段ぶんの結果を capture-ledger に報告し、次の段があるかを受け取る。
  *
  * ## この 1 往復に判断が全部入っている
  *
  * こちらが送るのは「何が起きたか」だけ。範囲の絞り込みも、重複排除も、上限の判定も
- * waggle が行う —— 方針は `crawls` の行に在り、重複排除は `crawl_pages` の unique index が
+ * capture-ledger が行う —— 方針は `crawls` の行に在り、重複排除は `crawl_pages` の unique index が
  * 持っているので、判断材料が両方あちらに在る。ここに写すと、2 か所が食い違ったときに
  * どちらが正しいのか言えなくなる。
  *
  * ## 次の段はこちらから起こさない
  *
- * `next` は返ってくるが、**それを使って次を起こすのは waggle**。この flow は 1 段で
+ * `next` は返ってくるが、**それを使って次を起こすのは capture-ledger**。この flow は 1 段で
  * 終わる。Windmill の while ループに繰り返しを持たせようとしたが、`stop_after_if` を
  * 付けた最小の flow が 643 回まで回り続けた (実測) ので、暴走しうるループの上に
  * 「相手に負荷をかけない」仕組みを載せないことにした。
@@ -48,8 +48,8 @@ export async function main(
 ): Promise<LevelOutcome> {
   // **設定は変数から読む。引数では受けない。**
   // Windmill は schema の既定値を UI からの実行にしか埋めない (`crawl_host.ts` に詳しい)。
-  // token は waggle 自身が持っていないもの —— issuer の鍵は host の loopback に在る ——
-  // なので、どちらにせよ waggle からは送れない。
+  // token は capture-ledger 自身が持っていないもの —— issuer の鍵は host の loopback に在る ——
+  // なので、どちらにせよ capture-ledger からは送れない。
   const waggle_url = await wmill.getVariable("u/admin/waggle_api_url");
   const token = await wmill.getVariable("u/admin/waggle_token");
 
@@ -60,7 +60,7 @@ export async function main(
   });
 
   if (!res.ok) {
-    // 本文を必ず読む。status だけだと waggle が返している理由が消える。
+    // 本文を必ず読む。status だけだと capture-ledger が返している理由が消える。
     const body = await res.text();
     const hint =
       res.status === 401

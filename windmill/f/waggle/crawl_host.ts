@@ -42,7 +42,7 @@ type CaptureStatus =
   | "CAPTURE_STATUS_HTTP_ERROR";
 
 /**
- * 何をどう取り込むか。**waggle が決めて、dispatch の payload で渡す。**
+ * 何をどう取り込むか。**capture-ledger が決めて、dispatch の payload で渡す。**
  *
  * ここに既定値を置かないのは意図的 —— flow の schema の既定値は webhook 起動では
  * 埋まらないので、「渡し忘れ」を既定値が隠すと、`png` を頼んだ配備が黙って
@@ -61,7 +61,7 @@ export interface CaptureSettings {
   /**
    * 成果物の押し出し先。**在れば BrowserHive は自前の保管庫へ書かない。**
    *
-   * waggle が crawl ごとに 1 回きりで発行するので、ここには「運んできたもの」しか
+   * capture-ledger が crawl ごとに 1 回きりで発行するので、ここには「運んできたもの」しか
    * 入らない —— この層は中身を見ないし、作りもしない。
    */
   artifactSink?: { url: string; token: string };
@@ -73,13 +73,13 @@ export interface PageResult {
   skipReason?: string;
   taskId?: string;
   correlationId?: string;
-  /** 礼儀の証拠。waggle がこの 2 つを保存し、後から間隔と重なりを測れるようにする。 */
+  /** 礼儀の証拠。capture-ledger がこの 2 つを保存し、後から間隔と重なりを測れるようにする。 */
   submittedAt?: string;
   finishedAt?: string;
   /**
    * `.links.json` の置き場所。**中身は読まない。**
    *
-   * 読むのは waggle の仕事にしてある —— あちらは既に S3 の client を持っていて、
+   * 読むのは capture-ledger の仕事にしてある —— あちらは既に S3 の client を持っていて、
    * 範囲の絞り込みと重複排除もあちらに在る。ここで読むと、S3 の資格情報と到達性を
    * Windmill にも用意することになり (別ドメインのコンテナからは seaweedfs に届かない)、
    * 「見つけた URL は何か」の判断材料が 2 か所に散る。
@@ -102,7 +102,7 @@ const POLL_INTERVAL_MS = 3000;
 const GRPC_NOT_FOUND = 5;
 const GRPC_UNAVAILABLE = 14;
 
-/** waggle が manifest から拾い直す合図。この綴りは `waggle/src/api/crawls.ts` と対。 */
+/** capture-ledger が manifest から拾い直す合図。この綴りは `capture-ledger/src/api/crawls.ts` と対。 */
 export const NOT_FOUND_REASON = "capture-not-found";
 
 /**
@@ -113,7 +113,7 @@ export const NOT_FOUND_REASON = "capture-not-found";
  * 「このページは取れない」と残り、しかもリンクが辿れないので木がそこで切れる。
  *
  * flow は `skip_failures: false` なので、ここで throw すれば段ごと失敗し、
- * waggle が `crawls` を `failed` で締める。
+ * capture-ledger が `crawls` を `failed` で締める。
  */
 export class ServerUnavailable extends Error {}
 
@@ -135,7 +135,7 @@ const grpcStatus = (err: unknown): number | undefined =>
 /**
  * gRPC の宛先は URL ではなく `host:port`。それでも scheme を書く設定 —— 癖で、
  * あるいは HTTP 転送の時代に書かれたものから —— に対しては、`http` という名前の
- * host へ繋ぎに行くのではなく scheme を落とす。waggle の `rpc/client.ts` と同じ規則。
+ * host へ繋ぎに行くのではなく scheme を落とす。capture-ledger の `rpc/client.ts` と同じ規則。
  */
 export const toTarget = (server: string): string =>
   server.replace(/^[a-z]+:\/\//, "").replace(/\/+$/, "");
@@ -240,7 +240,7 @@ const captureOne = async (
       labels: [],
       correlationId: crawlId,
       // **6 つ全部を送る。** proto3 では未設定と false が別物で、落とすと
-      // 「指定なし」として届く。何を立てるかを決めるのは waggle。
+      // 「指定なし」として届く。何を立てるかを決めるのは capture-ledger。
       captureFormats: capture.formats,
       signing: capture.signing,
       // 在れば BrowserHive はここへ押し出し、自前の保管庫へは書かない。
@@ -251,7 +251,7 @@ const captureOne = async (
   /**
    * 失敗として返す。**必ず `taskId` を載せる。**
    *
-   * 投入は成功しているので id は在る。waggle はこれを鍵に `.result.json` を引いて
+   * 投入は成功しているので id は在る。capture-ledger はこれを鍵に `.result.json` を引いて
    * 拾い直せる —— id を落とすと、成果物が S3 に在っても永久に台帳へ入らない。
    */
   const failure = (skipReason: string): PageResult => ({
@@ -278,7 +278,7 @@ const captureOne = async (
       if (err instanceof ServerUnavailable) throw err;
       // **`NOT_FOUND` は「無かった」ではない。** BrowserHive の結果キャッシュには
       // 上限があり、15 分待つ間に押し出されうる。取り込み自体は成功していて
-      // 成果物も S3 に在るので、waggle が manifest から拾い直す。
+      // 成果物も S3 に在るので、capture-ledger が manifest から拾い直す。
       if (grpcStatus(err) === GRPC_NOT_FOUND) return failure(NOT_FOUND_REASON);
       return failure(err instanceof Error ? err.message : String(err));
     }
@@ -370,19 +370,19 @@ export async function main(
   signing: boolean,
   initial_delay_ms = 0,
   /**
-   * 成果物の押し出し先。waggle が crawl ごとに 1 回きりで発行する。
+   * 成果物の押し出し先。capture-ledger が crawl ごとに 1 回きりで発行する。
    *
    * **省ける。** 省けば BrowserHive は従来どおり自前の保管庫へ書くので、2 つの経路が
    * 同時に生きる。ここを必須にすると、受け口を建てていない配備が動かなくなる。
    *
-   * flow は運ぶだけで中身を見ない —— 発行するのも、置き場所を決めるのも waggle。
+   * flow は運ぶだけで中身を見ない —— 発行するのも、置き場所を決めるのも capture-ledger。
    */
   artifact_sink?: { url: string; token: string },
 ): Promise<PageResult[]> {
   // **設定は変数から読む。引数では受けない。**
   // Windmill は schema の既定値を UI からの実行にしか埋めない —— webhook で起こすと
   // 引数は素通りで、`browserhive_target` が undefined のまま
-  // 「Channel target must be a string」で落ちる (実測)。waggle は自分がコンテナから
+  // 「Channel target must be a string」で落ちる (実測)。capture-ledger は自分がコンテナから
   // どう見えるかを知らないので、送らせることもできない。
   const target = await wmill.getVariable("u/admin/browserhive_target");
   // **空文字は「TLS を使わない」。** 変数そのものが無いなら落ちるのが正しい ——

@@ -1,9 +1,9 @@
-summary: 落ちた段を waggle に伝えてクロールを締める
+summary: 落ちた段を capture-ledger に伝えてクロールを締める
 description: |
   クロール 1 段を回す flow (f/waggle/crawl_level) の failure_module。
   普通の段としては走らない。
 
-  flow が途中で落ちると report_level に辿り着かないので、waggle は何も知らされず
+  flow が途中で落ちると report_level に辿り着かないので、capture-ledger は何も知らされず
   crawls の行が running のまま残る。部分 unique index が以後のクロールを全部塞ぐので、
   ここで締める。
 
