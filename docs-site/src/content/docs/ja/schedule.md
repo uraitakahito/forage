@@ -14,7 +14,7 @@ enabled: true
 
 止めたいときは `enabled: false` にして `pnpm run windmill:push`。
 
-`trigger_crawl` は waggle の `POST /api/crawls` を `fromTargets` で叩き
+`trigger_crawl` は capture-ledger の `POST /api/crawls` を `fromTargets` で叩き
 （`capture_targets` の有効な行が種、深さは 0）、`GET /api/crawls/:id` を
 **終わるまで**見に行く。待つことに意味がある —— API は **202** を返して即座に
 戻るので、そこで終わりにすると取り込みが失敗しても job は緑になる。実行履歴に
@@ -22,12 +22,12 @@ enabled: true
 
 ## 重なりは気にしなくてよい
 
-Windmill は前の job が走っていても次を起こす。それで構わない —— waggle が走行中の
+Windmill は前の job が走っていても次を起こす。それで構わない —— capture-ledger が走行中の
 2 本目を **409** で拒み、`trigger_crawl.ts` はそれを「見送り」として緑で終える。
 再試行はしない —— 走っている 1 本が終わるまで、何度投げても同じ答えが返るだけ。
 
 つまり時刻がどれだけ詰まっていても、走るのは常に 1 本。この保証は capture-scheduler ではなく
-**waggle の部分 unique index** が持っている。そこが正しい置き場所で、アプリ側の
+**capture-ledger の部分 unique index** が持っている。そこが正しい置き場所で、アプリ側の
 フラグで守ると、プロセスが増えた日に黙って破れる。
 
 ### 日次と手で起こしたクロールは塞ぎ合う

@@ -30,7 +30,7 @@ const USER_AGENT = "*";
 export interface Candidate {
   url: string;
   host: string;
-  /** このホストを最後に触り終えた時刻。waggle が入れる。最初の段は null。 */
+  /** このホストを最後に触り終えた時刻。capture-ledger が入れる。最初の段は null。 */
   lastFinishedAt?: string | null;
 }
 
@@ -56,7 +56,7 @@ export interface Skipped {
 
 export interface Plan {
   groups: HostGroup[];
-  /** 取らなかったものと理由。waggle に報告して `crawl_pages` に残す。 */
+  /** 取らなかったものと理由。capture-ledger に報告して `crawl_pages` に残す。 */
   skipped: Skipped[];
 }
 
@@ -108,7 +108,7 @@ export async function main(
     const first = list[0];
     if (first === undefined) continue;
     // scheme は最初の URL から取る。同じホストで混在していれば、そちらは別の
-    // origin なので既に範囲の絞り込みで落ちている (waggle 側の `inScope`)。
+    // origin なので既に範囲の絞り込みで落ちている (capture-ledger 側の `inScope`)。
     const scheme = new URL(first.url).protocol;
     const robots = respectRobots ? await fetchRobots(host, scheme) : undefined;
 

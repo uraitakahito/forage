@@ -45,24 +45,24 @@ afterEach(() => {
 
 describe("起こし方", () => {
   it("limit を渡さなければ fromTargets は空のまま", async () => {
-    // 空の `fromTargets` が「登録済みの一覧を全部」。上限は waggle 側の既定に委ねる。
-    // **`{}` だけを送ってはいけない** —— waggle は「どちらか一方」を要求するので 400 になる。
+    // 空の `fromTargets` が「登録済みの一覧を全部」。上限は capture-ledger 側の既定に委ねる。
+    // **`{}` だけを送ってはいけない** —— capture-ledger は「どちらか一方」を要求するので 400 になる。
     const seen = responding(409, {});
-    await main("http://waggle:7070", "tok");
+    await main("http://capture-ledger:7070", "tok");
 
-    expect(seen[0]!.url).toBe("http://waggle:7070/api/crawls");
+    expect(seen[0]!.url).toBe("http://capture-ledger:7070/api/crawls");
     expect(JSON.parse(String(seen[0]!.init.body))).toEqual({ fromTargets: {} });
   });
 
   it("limit を渡せば載せる", async () => {
     const seen = responding(409, {});
-    await main("http://waggle:7070", "tok", 5);
+    await main("http://capture-ledger:7070", "tok", 5);
     expect(JSON.parse(String(seen[0]!.init.body))).toEqual({ fromTargets: { limit: 5 } });
   });
 
   it("トークンを Bearer で送る", async () => {
     const seen = responding(409, {});
-    await main("http://waggle:7070", "tok");
+    await main("http://capture-ledger:7070", "tok");
     const headers = seen[0]!.init.headers as Record<string, string>;
     expect(headers["authorization"]).toBe("Bearer tok");
   });
@@ -70,10 +70,12 @@ describe("起こし方", () => {
 
 describe("既に走っているとき", () => {
   it("409 は見送りで、再試行しない", async () => {
-    // waggle は走行中の 2 本目を部分 unique index で弾く。ここで再試行すると
+    // capture-ledger は走行中の 2 本目を部分 unique index で弾く。ここで再試行すると
     // 定期実行が終わらない —— 見送るのが正しい。
     const seen = responding(409, { error: "run already in progress" });
-    await expect(main("http://waggle:7070", "tok")).resolves.toEqual({ outcome: "skipped" });
+    await expect(main("http://capture-ledger:7070", "tok")).resolves.toEqual({
+      outcome: "skipped",
+    });
 
     // **問い合わせに進んでいないこと。** 進むと存在しない runId を追いかける。
     expect(seen).toHaveLength(1);
@@ -83,26 +85,26 @@ describe("既に走っているとき", () => {
 describe("失敗したときの言い分", () => {
   it("401 には issuer 再起動の示唆を付ける", async () => {
     responding(401, { error: "unauthenticated" });
-    await expect(main("http://waggle:7070", "tok")).rejects.toThrow(/issuer/);
+    await expect(main("http://capture-ledger:7070", "tok")).rejects.toThrow(/issuer/);
   });
 
   it("404 には付与のしかたまで書く", async () => {
-    // 「見てはいけない」と「存在しない」を waggle は区別せずに答えるので、
+    // 「見てはいけない」と「存在しない」を capture-ledger は区別せずに答えるので、
     // 404 だけでは辿れない。叩くべきコマンドまで書いてある。
     responding(404, { error: "not found" });
-    await expect(main("http://waggle:7070", "tok")).rejects.toThrow(/fga:grant submitter/);
+    await expect(main("http://capture-ledger:7070", "tok")).rejects.toThrow(/fga:grant submitter/);
   });
 
   it("本文を必ず読む", async () => {
-    // status だけだと waggle が返している理由が消える。
+    // status だけだと capture-ledger が返している理由が消える。
     responding(500, { error: "internal error" });
-    await expect(main("http://waggle:7070", "tok")).rejects.toThrow(/internal error/);
+    await expect(main("http://capture-ledger:7070", "tok")).rejects.toThrow(/internal error/);
   });
 
   it("202 でも 409 でもない成功系は失敗として扱う", async () => {
     // 200 は「起こした」を意味しない。202 だけが受理。
     responding(200, { crawlId: "c1" });
-    await expect(main("http://waggle:7070", "tok")).rejects.toThrow(/200/);
+    await expect(main("http://capture-ledger:7070", "tok")).rejects.toThrow(/200/);
   });
 });
 
@@ -148,10 +150,10 @@ describe("完了を待つ", () => {
   });
 
   it("知らない状態を succeeded に落とさない", async () => {
-    // **改名の砦。** waggle が field 名を変えると `crawl.state` が undefined になり、
+    // **改名の砦。** capture-ledger が field 名を変えると `crawl.state` が undefined になり、
     // running でも failed でもないので、砦が無ければ succeeded で返ってしまう。
-    // waggle が古い `status` を返してきた場合。実測でも、改名前の script を
-    // 改名後の waggle に当てて、ここが発火することを確かめてある。
+    // capture-ledger が古い `status` を返してきた場合。実測でも、改名前の script を
+    // 改名後の capture-ledger に当てて、ここが発火することを確かめてある。
     polling([{ status: "succeeded", pagesCaptured: 3 }]);
     await expect(main("http://w", "tok", undefined, 60_000, 5)).rejects.toThrow(
       /知らない状態「undefined」/,
@@ -195,7 +197,7 @@ describe("完了を待つ", () => {
   });
 
   it("期限を過ぎたら諦める", async () => {
-    // 走ったまま残る —— waggle に中断の口が無いので、ここで殺す術は無い。
+    // 走ったまま残る —— capture-ledger に中断の口が無いので、ここで殺す術は無い。
     polling([{ state: "running" }]);
     await expect(main("http://w", "tok", undefined, -1, 5)).rejects.toThrow(/終わりませんでした/);
   });

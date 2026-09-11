@@ -2,7 +2,7 @@
   "name": "capture-scheduler",
   "version": "0.1.0",
   "private": true,
-  "description": "Windmill が waggle の取り込みを時刻どおりに起こす",
+  "description": "Windmill が capture-ledger の取り込みを時刻どおりに起こす",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -10,7 +10,7 @@
   "packageManager": "pnpm@11.20.0+sha512.9a6f330a95b66446ea088faf1521405a8a01f07fde7124cc9958dfed52d4bb436737e65b08f85f37b46fcba375092558ac51262b816844b22f63406ed166bfee",
   "scripts": {
     "windmill:bootstrap": "node --env-file-if-exists=.env scripts/bootstrap.mjs",
-    "windmill:waggle-token": "node --env-file-if-exists=.env scripts/waggle-token.mjs",
+    "windmill:capture-ledger-token": "node --env-file-if-exists=.env scripts/capture-ledger-token.mjs",
     "windmill:push": "node --env-file-if-exists=.env scripts/wmill.mjs sync push --yes",
     "windmill:pull": "node --env-file-if-exists=.env scripts/wmill.mjs sync pull --yes",
     "windmill:diff": "node --env-file-if-exists=.env scripts/wmill.mjs sync push --dry-run",

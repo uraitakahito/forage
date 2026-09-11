@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { describe as describeError } from "../windmill/f/waggle/fail_crawl.js";
 
 /**
- * 落ちた段を waggle に伝える経路。
+ * 落ちた段を capture-ledger に伝える経路。
  *
  * `main` は Windmill の変数を読むので単体では回せない。ここで押さえるのは
  * **誤りを 1 行に潰す部分**で、そこがこの script の判断らしい判断のすべて。
@@ -30,7 +30,7 @@ describe("誤りを 1 行に潰す", () => {
   });
 
   it("形の分からないものも落とさずに残す", () => {
-    // 潰して空文字にすると、waggle 側の `error` 列が「理由なし」で埋まる。
+    // 潰して空文字にすると、capture-ledger 側の `error` 列が「理由なし」で埋まる。
     expect(describeError({ weird: 1 })).toContain("weird");
   });
 

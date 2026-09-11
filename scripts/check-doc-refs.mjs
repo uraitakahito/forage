@@ -3,7 +3,7 @@
  *
  * **`astro build` はこれを守らない。** region が欠けていると
  * "Failed to parse Markdown file" と log には出るのに、Starlight の docs loader が
- * 例外を捕まえるので、全ページをビルドしたと報告して 0 で終わる (waggle と capture-fixtures が
+ * 例外を捕まえるので、全ページをビルドしたと報告して 0 で終わる (capture-ledger と capture-fixtures が
  * 実測して docstring に残している。落ちるのは `.mdx` のときだけで、capture-scheduler は全部
  * `.md`)。ビルドに任せると、ドキュメントは空のコードフェンスのまま出てしまう。
  *
@@ -22,7 +22,7 @@
  *
  * ## 他の repo との違い
  *
- * waggle と capture-fixtures の同名スクリプトは `src/` を直書きしている。**capture-scheduler に `src/` は
+ * capture-ledger と capture-fixtures の同名スクリプトは `src/` を直書きしている。**capture-scheduler に `src/` は
  * 無い** —— TypeScript は `windmill/f/waggle/` に在り、Windmill の worker (bun) が
  * 動かす。そのまま持ってくると capture-fixtures 版は ENOENT で落ちる。
  *
@@ -35,7 +35,7 @@ import { join, relative, resolve } from "node:path";
 const ROOT = resolve(import.meta.dirname, "..");
 const DOCS = resolve(ROOT, "docs-site/src/content/docs");
 const JA = resolve(DOCS, "ja");
-/** ソースの根。waggle / capture-fixtures はここが `src`。 */
+/** ソースの根。capture-ledger / capture-fixtures はここが `src`。 */
 const SOURCE_ROOT = "windmill/f";
 
 /** 配下のページを再帰で集める。`ja/` は呼ぶ側が分ける。 */

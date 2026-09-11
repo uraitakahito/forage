@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 /**
- * vendor した proto が waggle の写しと一致しているかを見る。
+ * vendor した proto が capture-ledger の写しと一致しているかを見る。
  *
- * ## なぜ waggle と比べるのか
+ * ## なぜ capture-ledger と比べるのか
  *
- * 契約の正は browserhive だが、**waggle が既にその番人をしている** ——
+ * 契約の正は browserhive だが、**capture-ledger が既にその番人をしている** ——
  * `.upstream/browserhive` の submodule を持ち、`proto:check` が CI で差分を検出する。
- * capture-scheduler が browserhive を直接見に行くと、鎖が 2 本になって、waggle が上げていないのに
+ * capture-scheduler が browserhive を直接見に行くと、鎖が 2 本になって、capture-ledger が上げていないのに
  * capture-scheduler だけ新しい、という状態が作れてしまう。
  *
- * 鎖は 1 本にする: browserhive → (waggle の proto:check) → waggle → (これ) → capture-scheduler。
+ * 鎖は 1 本にする: browserhive → (capture-ledger の proto:check) → capture-ledger → (これ) → capture-scheduler。
  *
  * ## これが無いと何が起きるか
  *
@@ -24,7 +24,7 @@ import { spawnSync } from "node:child_process";
 const here = dirname(fileURLToPath(import.meta.url));
 const local = join(here, "..", "proto", "browserhive", "v1", "capture.proto");
 
-const REPO = "uraitakahito/waggle";
+const REPO = "uraitakahito/capture-ledger";
 const PATH = "proto/browserhive/v1/capture.proto";
 const REF = "main";
 
@@ -36,7 +36,7 @@ const fetchUpstream = () => {
   );
   if (result.status !== 0) {
     throw new Error(
-      `waggle の proto を引けません: ${String(result.stderr).slice(0, 200)}\n` +
+      `capture-ledger の proto を引けません: ${String(result.stderr).slice(0, 200)}\n` +
         "  gh の認証は通っていますか (gh auth status)",
     );
   }

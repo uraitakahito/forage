@@ -18,7 +18,7 @@ pnpm run windmill:push   # git を正として UI に反映する
 [Windmill CE](/windmill-ce/) に実例がある。
 
 `windmill/wmill.yaml` は `includeSchedules: true` にしてある。秘密は同期しない
-（`skipSecrets`）。`u/admin/waggle_token` は `scripts/waggle-token.mjs` が API 経由で入れる。
+（`skipSecrets`）。`u/admin/waggle_token` は `scripts/capture-ledger-token.mjs` が API 経由で入れる。
 
 ## どこに何があるか
 

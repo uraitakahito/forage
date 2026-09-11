@@ -6,7 +6,7 @@ import { describe, it, expect, beforeAll } from "vitest";
  * ## flow を直接叩かない
  *
  * Windmill の口 (`/jobs/run/f/...`) を直接叩けば速いが、それでは意味が無い。
- * この試験の目的は **waggle が実際に送る引数**を通すことで、waggle が送るのは
+ * この試験の目的は **capture-ledger が実際に送る引数**を通すことで、capture-ledger が送るのは
  * 7 つ (`crawl_id` / `depth` / `frontier` / `per_host_delay_ms` /
  * `host_parallelism` / `capture_formats` / `signing`) だけ。
  * `respect_robots` は**送られない**。
@@ -35,10 +35,10 @@ import { describe, it, expect, beforeAll } from "vitest";
 
 const WAGGLE = process.env["E2E_WAGGLE_URL"] ?? "http://127.0.0.1:7070";
 const ISSUER = process.env["E2E_ISSUER_URL"] ?? "http://127.0.0.1:9099";
-/** waggle のスタックの capture-fixtures。コンテナからも host からも同じ名前で引ける。 */
-const FIXTURES = process.env["E2E_FIXTURES_URL"] ?? "http://capture-fixtures.waggle:8080";
+/** capture-ledger のスタックの capture-fixtures。コンテナからも host からも同じ名前で引ける。 */
+const FIXTURES = process.env["E2E_FIXTURES_URL"] ?? "http://capture-fixtures.capture-ledger:8080";
 
-/** 取り込みを起こせる主体。waggle 側で `submitter` の付与が要る。 */
+/** 取り込みを起こせる主体。capture-ledger 側で `submitter` の付与が要る。 */
 const SUBJECT = process.env["E2E_SUBJECT"] ?? "e2e";
 
 let token = "";
@@ -80,14 +80,14 @@ describe("クロールが flow を通って索引まで終わる", () => {
     // そこで `text()` を呼ぶと後段の `json()` が "Body has already been read" で落ちる
     // (実測)。先に文字列で受けて、それを両方に使う。
     const startedBody = await started.text();
-    // 404 は「無い」とも「起こしてよくない」とも読める —— waggle は列挙を避けるために
+    // 404 は「無い」とも「起こしてよくない」とも読める —— capture-ledger は列挙を避けるために
     // 両者を区別せずに答える。付与を疑う先をここに書いておく。
     expect(
       started.status,
       startedBody +
         (started.status === 404
           ? ` —— ${SUBJECT} に submitter がありますか` +
-            ` (waggle: node dist/fga/ledger-commands.js grant submitter ${SUBJECT} acme)`
+            ` (capture-ledger: node dist/fga/ledger-commands.js grant submitter ${SUBJECT} acme)`
           : started.status === 409
             ? " —— 走行中のクロールが残っています。**この試験が途中で落ちると必ずこうなる**" +
               " (flow は非同期に走り続けるため)。片付けてから: " +

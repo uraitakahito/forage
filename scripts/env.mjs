@@ -1,5 +1,5 @@
 /**
- * 環境変数の読み口。waggle の `src/config/env.ts` と同じ規約に揃えてある。
+ * 環境変数の読み口。capture-ledger の `src/config/env.ts` と同じ規約に揃えてある。
  *
  * どちらの getter も空文字を「無い」と同じに扱う。POSIX の `${VAR:-word}` 側の
  * 意味で、`??` (`${VAR-word}` 側) は使わない —— `.env` の `NAME=` は既定値を
@@ -16,13 +16,13 @@ export const OPTIONAL_ENV = [
   "WINDMILL_WORKSPACE",
   "WINDMILL_EMAIL",
   "WINDMILL_PASSWORD",
-  "WAGGLE_API_URL",
-  "WAGGLE_OIDC_ISSUER",
-  "WAGGLE_SUBJECT",
-  "WAGGLE_ORGANIZATIONS",
-  "WAGGLE_TOKEN_EXPIRES_IN",
-  "WAGGLE_BROWSERHIVE_TARGET",
-  "WAGGLE_BROWSERHIVE_TLS_CA_PEM",
+  "CAPTURE_LEDGER_API_URL",
+  "CAPTURE_LEDGER_OIDC_ISSUER",
+  "CAPTURE_LEDGER_SUBJECT",
+  "CAPTURE_LEDGER_ORGANIZATIONS",
+  "CAPTURE_LEDGER_TOKEN_EXPIRES_IN",
+  "CAPTURE_LEDGER_BROWSERHIVE_TARGET",
+  "CAPTURE_LEDGER_BROWSERHIVE_TLS_CA_PEM",
 ];
 
 /** 値を貼るまで空でいる変数。`guardEnv` の対象外。 */
@@ -60,7 +60,7 @@ export const required = (name, hint) => {
 /** よく使う 3 つ。既定値は `.env.example` のコメントと一致させること。 */
 export const windmillUrl = () => optional("WINDMILL_URL", "http://127.0.0.1:8000");
 export const windmillWorkspace = () => optional("WINDMILL_WORKSPACE", "crawler");
-export const waggleApiUrl = () => optional("WAGGLE_API_URL", "http://192.168.64.1:7070");
+export const ledgerApiUrl = () => optional("CAPTURE_LEDGER_API_URL", "http://192.168.64.1:7070");
 
 /**
  * Windmill の API を叩く。

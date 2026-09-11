@@ -16,11 +16,11 @@
 #
 # 上流 (windmill-labs/windmill) の docker-compose.yml は 8 サービス —— db、server、
 # worker ×3、native worker、indexer、LSP、Caddy。あれは「1 台で本番を張る」ための形で、
-# ここが要るのは **waggle の実行 API を時刻どおりに叩くこと** だけ。
+# ここが要るのは **capture-ledger の実行 API を時刻どおりに叩くこと** だけ。
 #
 # `MODE=standalone` は server と worker を 1 プロセスで兼ねる。**ただし standalone の
 # NUM_WORKERS は 1 に固定**で、これだけでは日次の経路が詰まる。`trigger_crawl` は
-# クロールが終わるまで待ち (失敗を実行履歴に赤で残すため)、その待っている間に waggle が
+# クロールが終わるまで待ち (失敗を実行履歴に赤で残すため)、その待っている間に capture-ledger が
 # `crawl_level` を**同じ Windmill へ投げ返す** —— 1 本しかない worker を奪い合って、
 # 投げ返されたフローは永久に queue で待つ。実測で確かめた: `trigger_crawl` を取り消した
 # 途端にフローが動き出した。だから worker をもう 1 本、別サービスとして立てる。
@@ -30,7 +30,7 @@
 name: capture-scheduler
 
 services:
-  # Windmill 専用の Postgres。waggle の `postgres` とも `openfga-db` とも分ける。
+  # Windmill 専用の Postgres。capture-ledger の `postgres` とも `openfga-db` とも分ける。
   #
   # 分ける理由は openfga-db と同じ: 1 つのインスタンスを共用すると、他のサービスの
   # トランザクションの中で Windmill の状態を触れるかのような思い込みを誘う。

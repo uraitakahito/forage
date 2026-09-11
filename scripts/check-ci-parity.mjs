@@ -8,7 +8,7 @@
  * どちらかを直してもう片方を忘れると、片側でしか走らない検査ができる。
  * 2026-09-11 に 2 通りの形で踏んだ:
  *
- *   - waggle で、`--` の綴りを見る検査が **workflow の inline shell にしか無かった**。
+ *   - capture-ledger で、`--` の綴りを見る検査が **workflow の inline shell にしか無かった**。
  *     手元では走らせようが無く、CI に指摘されて初めて気づいた
  *   - browserhive で `check` の**並びが CI と違っていた**。`typecheck` が `build` より
  *     先に並んでおり、`dist` が空のまっさらな clone だけが型の解決に失敗した ——

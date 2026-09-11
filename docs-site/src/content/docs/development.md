@@ -19,7 +19,7 @@ push before pulling — see [Windmill CE](/windmill-ce/).
 
 `windmill/wmill.yaml` sets `includeSchedules: true`. Secrets are not synced
 (`skipSecrets`); `u/admin/waggle_token` is injected through the API by
-`scripts/waggle-token.mjs`.
+`scripts/capture-ledger-token.mjs`.
 
 ## Layout
 

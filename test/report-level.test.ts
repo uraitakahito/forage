@@ -2,14 +2,14 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { main } from "../windmill/f/waggle/report_level.js";
 
 /**
- * 段の報告。**判断は全部 waggle 側**で、ここが送るのは「何が起きたか」だけ。
+ * 段の報告。**判断は全部 capture-ledger 側**で、ここが送るのは「何が起きたか」だけ。
  *
- * 範囲の絞り込みも重複排除も上限の判定も waggle が持つ。ここに写すと、
+ * 範囲の絞り込みも重複排除も上限の判定も capture-ledger が持つ。ここに写すと、
  * 2 か所が食い違ったときにどちらが正しいか言えなくなる。
  */
 
 const VARS: Record<string, string> = {
-  "u/admin/waggle_api_url": "http://waggle:7070",
+  "u/admin/waggle_api_url": "http://capture-ledger:7070",
   "u/admin/waggle_token": "tok",
 };
 
@@ -45,7 +45,7 @@ describe("報告の送り方", () => {
     const seen = responding(200, { next: [], stopReason: null });
     await main("c-1", 2, CAPTURED);
 
-    expect(seen[0]!.url).toBe("http://waggle:7070/api/crawls/c-1/pages");
+    expect(seen[0]!.url).toBe("http://capture-ledger:7070/api/crawls/c-1/pages");
     expect(JSON.parse(String(seen[0]!.init.body))).toEqual({ depth: 2, results: CAPTURED });
   });
 
@@ -75,14 +75,14 @@ describe("失敗したときの言い分", () => {
   });
 
   it("404 には付与の示唆を付ける", async () => {
-    // waggle は「見てはいけない」と「存在しない」を区別せずに答えるので、
+    // capture-ledger は「見てはいけない」と「存在しない」を区別せずに答えるので、
     // 404 だけでは足りない。submitter の付与を疑う先を書いておく。
     responding(404, { error: "not found" });
     await expect(main("c-1", 0, CAPTURED)).rejects.toThrow(/submitter/);
   });
 
   it("本文を必ず読む", async () => {
-    // status だけだと waggle が返している理由が消える。
+    // status だけだと capture-ledger が返している理由が消える。
     responding(500, "crawl is not running");
     await expect(main("c-1", 0, CAPTURED)).rejects.toThrow(/crawl is not running/);
   });
