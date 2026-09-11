@@ -14,13 +14,16 @@
     "module": "esnext",
     "moduleResolution": "bundler",
     // `dom` が要るのは `fetch` / `Response` / `AbortSignal` のため。
+    // `dom.iterable` は scripts/docs-shots.ts が browser の中で
+    // `[...document.querySelectorAll(…)]` と展開するのに要る (NodeList は
+    // `dom` だけだと iterable にならない)。
     // `node` の型は試験側 (`fs`, `net`) で要る。
-    "lib": ["es2023", "dom"],
+    "lib": ["es2023", "dom", "dom.iterable"],
     "types": ["node"],
     // 依存の .d.ts までは見ない。windmill-client は生成物で、こちらの責任ではない。
     "skipLibCheck": true,
     "verbatimModuleSyntax": true,
     "isolatedModules": true
   },
-  "include": ["windmill/f/**/*.ts", "test/**/*.ts", "vitest.config.ts"]
+  "include": ["windmill/f/**/*.ts", "test/**/*.ts", "vitest.config.ts", "scripts/**/*.ts"]
 }

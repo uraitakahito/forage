@@ -11,7 +11,7 @@
  *
  * 冪等: workspace も token も、既にあれば作り直さない。
  */
-import { guardEnv, optional, windmillFetch, windmillUrl, windmillWorkspace } from "./env.mjs";
+import { guardEnv, optional, windmillFetch, windmillUrl, windmillWorkspace } from "./env.js";
 
 guardEnv();
 
@@ -22,7 +22,7 @@ const PASSWORD = optional("WINDMILL_PASSWORD", "changeme");
 const ATTEMPTS = 60;
 const DELAY_MS = 1000;
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const waitForWindmill = async () => {
   for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
@@ -55,9 +55,9 @@ const login = async () => {
   return token;
 };
 
-const ensureWorkspace = async (token, id) => {
+const ensureWorkspace = async (token: string, id: string) => {
   const existing = await windmillFetch("/api/workspaces/list", { token });
-  if (Array.isArray(existing) && existing.some((w) => w.id === id)) {
+  if (Array.isArray(existing) && existing.some((w: { id?: string }) => w.id === id)) {
     process.stderr.write(`workspace "${id}" は既にあります。\n`);
     return;
   }
@@ -77,7 +77,7 @@ const ensureWorkspace = async (token, id) => {
  * ログインで得た token をそのまま渡さないのは、あれがセッションのもので、
  * ログアウトや期限で消えるから。ここで作るのは明示的に消すまで残るもの。
  */
-const createToken = async (token) => {
+const createToken = async (token: string) => {
   const label = "capture-scheduler";
   const existing = await windmillFetch("/api/users/tokens/list", { token });
   if (Array.isArray(existing) && existing.some((t) => t.label === label)) {

@@ -9,7 +9,7 @@ pnpm run test:e2e    # 1 end-to-end test, needs the stack
 pnpm run check       # format, env, typecheck, unit tests
 ```
 
-`pretest:e2e` runs `scripts/check-stack.mjs` first and names **everything**
+`pretest:e2e` runs `scripts/check-stack.ts` first and names **everything**
 missing at once. It lives outside vitest deliberately: vitest prints
 "No test files found, exiting with code 1" whenever a global setup throws, and no
 message written inside can survive that.
