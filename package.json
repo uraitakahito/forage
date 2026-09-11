@@ -1,5 +1,5 @@
 {
-  "name": "forage",
+  "name": "capture-scheduler",
   "version": "0.1.0",
   "private": true,
   "description": "Windmill が waggle の取り込みを時刻どおりに起こす",
@@ -25,9 +25,9 @@
     "test:watch": "vitest --project unit",
     "pretest:e2e": "node scripts/check-stack.mjs",
     "test:e2e": "vitest run --project e2e",
-    "site:dev": "pnpm --filter forage-docs-site run dev",
-    "site:build": "pnpm --filter forage-docs-site run build",
-    "site:preview": "pnpm --filter forage-docs-site run preview",
+    "site:dev": "pnpm --filter capture-scheduler-docs-site run dev",
+    "site:build": "pnpm --filter capture-scheduler-docs-site run build",
+    "site:preview": "pnpm --filter capture-scheduler-docs-site run preview",
     "site:check": "pnpm run site:build && node scripts/check-doc-refs.mjs",
     "check:ci-parity": "node scripts/check-ci-parity.mjs"
   },

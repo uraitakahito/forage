@@ -5,9 +5,9 @@
 #   container-compose down         # 停止する。volume (とその中身) は残る
 #
 # マシンごとに 1 度だけ要る用意:
-#   sudo container system dns create forage
+#   sudo container system dns create capture-scheduler
 # project 名と同じ DNS ドメインがあると、container-compose は real-DNS モードに
-# 入る: コンテナは <service>.forage という名前になり、プラットフォームの DNS に
+# 入る: コンテナは <service>.capture-scheduler という名前になり、プラットフォームの DNS に
 # 登録され、他のコンテナからも host からも引ける。
 # container_name: を足してはならない —— DNS の命名が抑止され、`container exec` で
 # 各コンテナの中の /etc/hosts を書き換える方式に落ちる。
@@ -27,7 +27,7 @@
 #
 # **`windmill-full` イメージは使わない** —— amd64 しか publish されていないため
 # (registry で確認済み)。素の `windmill` には arm64 がある。
-name: forage
+name: capture-scheduler
 
 services:
   # Windmill 専用の Postgres。waggle の `postgres` とも `openfga-db` とも分ける。
@@ -59,7 +59,7 @@ services:
       # **複合値にしてある。** 素のサービス名を値に書くと container-compose が
       # その IP に書き換えてしまう (browserhive で実測、replay で 403 になった)。
       # URL の一部として書けばその書き換えは起きない。
-      - DATABASE_URL=postgres://windmill:windmill@windmill-db.forage:5432/windmill?sslmode=disable
+      - DATABASE_URL=postgres://windmill:windmill@windmill-db.capture-scheduler:5432/windmill?sslmode=disable
       - BASE_URL=http://127.0.0.1:8000
       - RUST_LOG=info
     ports:
@@ -86,7 +86,7 @@ services:
       - MODE=worker
       - WORKER_GROUP=default
       # server と同じ理由で複合値にする (素のサービス名は IP に化ける)。
-      - DATABASE_URL=postgres://windmill:windmill@windmill-db.forage:5432/windmill?sslmode=disable
+      - DATABASE_URL=postgres://windmill:windmill@windmill-db.capture-scheduler:5432/windmill?sslmode=disable
       - RUST_LOG=info
     depends_on:
       - windmill-db

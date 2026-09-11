@@ -4,14 +4,14 @@ import { satteri } from "@astrojs/markdown-satteri";
 import mdastCodeRegion from "./src/plugins/mdast-code-region";
 import hastRebaseLinks from "./src/plugins/hast-rebase-links";
 
-const BASE = "/forage";
+const BASE = "/capture-scheduler";
 
 export default defineConfig({
   site: "https://uraitakahito.github.io",
   base: BASE,
   integrations: [
     starlight({
-      title: "forage Docs",
+      title: "capture-scheduler Docs",
       customCss: ["./src/styles/tables.css"],
       // 英語が root (接頭辞なし)、日本語は /ja/ 配下。訳が無いページは
       // Starlight が黙って英語に落とす —— **半分だけ訳したサイトも緑でビルドできる**
@@ -21,7 +21,13 @@ export default defineConfig({
         root: { label: "English", lang: "en" },
         ja: { label: "日本語", lang: "ja" },
       },
-      social: [{ icon: "github", label: "GitHub", href: "https://github.com/uraitakahito/forage" }],
+      social: [
+        {
+          icon: "github",
+          label: "GitHub",
+          href: "https://github.com/uraitakahito/capture-scheduler",
+        },
+      ],
       // 各項目に `ja` 訳を持たせる。Starlight はページを翻訳するが**ナビゲーションは
       // 翻訳しない**ので、これが無いと日本語ドキュメントは、訳されたページが英語の
       // 目次にぶら下がった状態になる。

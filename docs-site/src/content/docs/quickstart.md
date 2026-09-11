@@ -6,7 +6,7 @@ description: Bring up Windmill, hand it a token for waggle, and open the UI
 ## Bring it up
 
 ```sh
-sudo container system dns create forage   # once per machine
+sudo container system dns create capture-scheduler   # once per machine
 ./setup.sh
 container-compose up -d
 pnpm install

@@ -9,7 +9,7 @@ name: site
 #
 # なぜ site:build ではなく site:check なのか:
 #   `.md` のページでは、`// #region` の抜き出しが失敗しても `astro build` は緑で
-#   終わる (Starlight の docs loader が例外を捕まえるため)。forage のページは全部
+#   終わる (Starlight の docs loader が例外を捕まえるため)。capture-scheduler のページは全部
 #   `.md` なので、**ビルドは守りにならない**。実測でも region を改名したまま
 #   ビルドが通った。非 0 で落ちるのは check-doc-refs.mjs だけ。
 
