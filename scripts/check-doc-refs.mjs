@@ -4,10 +4,10 @@
  * **`astro build` はこれを守らない。** region が欠けていると
  * "Failed to parse Markdown file" と log には出るのに、Starlight の docs loader が
  * 例外を捕まえるので、全ページをビルドしたと報告して 0 で終わる (capture-ledger と capture-fixtures が
- * 実測して docstring に残している。落ちるのは `.mdx` のときだけで、capture-scheduler は全部
- * `.md`)。ビルドに任せると、ドキュメントは空のコードフェンスのまま出てしまう。
+ * 実測して docstring に残している)。ビルドに任せると、ドキュメントは空のコード
+ * フェンスのまま出てしまう。
  *
- * 見るのは 3 つ:
+ * 見るのは 5 つ:
  *
  *   1. 訳の欠落 —— 日本語版の無い英語ページ、あるいは英語の原文が無い日本語ページ。
  *      Starlight はページが無いと黙って英語に落とすので、**半分だけ訳したサイトも
@@ -15,6 +15,13 @@
  *   2. 壊れた `#region` の抜粋。
  *   3. 死んだソースのパス —— コードスパンに書かれた `windmill/….ts` のうち、その後
  *      名前が変わったか消えたもの。
+ *   4. スクリーンショットの参照 —— windmill-ui のページが import する画像が実在するか。
+ *      **両方向** で見る: assets/windmill-ui/ に在るのにどのページからも import され
+ *      ない置き去りの PNG も落とす (撮ったが使われない写真は腐る)。shots-manifest.json は
+ *      台帳なので参照検査から除く。
+ *   5. スクショの版 —— shots-manifest.json の windmillVersion が docker-compose.yml の
+ *      windmill の pin と一致するか。**compose を上げたら撮り直せ** を機械で言う。
+ *      UI が変わったのに写真が古い、を緑で出荷させない (scripts/docs-shots.mjs が撮る)。
  *
  * 訳について見るのはページの **存在** だけで、構造は一切見ない。両方の言語に同じ
  * 見出しを強いると日本語が悪くなる。ページの歩調を合わせるのは人の仕事で、
@@ -110,6 +117,46 @@ for (const page of [...en.map((p) => join(DOCS, p)), ...[...ja].map((p) => join(
   }
 }
 
+// ── 4. スクリーンショットの参照 (両方向) ─────────────────────────────
+const SHOTS_DIR = resolve(ROOT, "docs-site/src/assets/windmill-ui");
+if (existsSync(SHOTS_DIR)) {
+  const onDisk = new Set(readdirSync(SHOTS_DIR).filter((f) => f.endsWith(".png")));
+  const referenced = new Set();
+  for (const page of [...en.map((p) => join(DOCS, p)), ...[...ja].map((p) => join(JA, p))]) {
+    const text = readFileSync(page, "utf8");
+    // import x from "…/assets/windmill-ui/NN-….png"
+    for (const [, file] of text.matchAll(/assets\/windmill-ui\/([\w-]+\.png)/g)) {
+      referenced.add(file);
+      if (!onDisk.has(file)) {
+        problems.push(`${relative(ROOT, page)}: 参照する ${file} が assets/windmill-ui/ に無い`);
+      }
+    }
+  }
+  for (const file of onDisk) {
+    if (!referenced.has(file)) {
+      problems.push(`assets/windmill-ui/${file} はどのページからも import されていない (置き去り)`);
+    }
+  }
+
+  // ── 5. スクショの版 == compose の pin ──────────────────────────────
+  const manifestPath = join(SHOTS_DIR, "shots-manifest.json");
+  if (!existsSync(manifestPath)) {
+    problems.push("assets/windmill-ui/shots-manifest.json が無い (docs-shots.mjs で撮ること)");
+  } else {
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    const compose = readFileSync(resolve(ROOT, "docker-compose.yml"), "utf8");
+    const pin = /windmill-labs\/windmill:(\d+\.\d+\.\d+)/.exec(compose);
+    if (pin === null) {
+      problems.push("docker-compose.yml に windmill の pin が見つからない");
+    } else if (manifest.windmillVersion !== pin[1]) {
+      problems.push(
+        `スクショが古い: shots-manifest.json は windmill ${String(manifest.windmillVersion)} だが ` +
+          `compose の pin は ${pin[1]} —— UI が変わっている。scripts/docs-shots.mjs で撮り直すこと`,
+      );
+    }
+  }
+}
+
 if (problems.length > 0) {
   console.error("doc-ref check failed:");
   for (const p of problems) console.error(`  ${p}`);
@@ -117,5 +164,6 @@ if (problems.length > 0) {
 }
 
 console.log(
-  `✓ doc-ref check passed: ${en.length} pages in English and Japanese, all source paths resolve`,
+  `✓ doc-ref check passed: ${en.length} pages in English and Japanese, ` +
+    `all source paths and screenshots resolve`,
 );
