@@ -37,9 +37,9 @@ index_level   台帳に載ったぶんを索引に載せるよう capture-ledger
 
 細部に見えて、そうではないところ。
 
-BrowserHive の `TaskQueue` に**容量制限は無く、投入は決して拒まれない**。同時に走る数を
-決めているのは worker の数だけ。だから 3 件を間を空けて投げても何も変わらない ——
-キューに並んで連続して実行される。**投入側の間隔は相手のサーバに届かない。**
+取り込みにかかる時間は前もって分からない —— 2 秒で終わるページも 2 分かかるページも
+ある。だから投入から測った間隔は相手が感じる間隔と無関係で、前の取り込みが終わった
+直後に次が届きうる。**投入側の間隔は相手のサーバに届かない。**
 
 間隔が意味を持つのは、「前のページが終わってから、次を投げるまで」に置いたときだけ:
 
@@ -63,11 +63,29 @@ BrowserHive の `TaskQueue` に**容量制限は無く、投入は決して拒�
 `test/plan-level.test.ts` に両側の試験があるのは、「robots があれば常に robots を採る」
 実装が片側の試験を通ってしまうから。
 
+## BrowserHive は browser 1 台に口 1 つ
+
+BrowserHive (v9) は queue も pool も持たない。`Capture` は 1 往復で、走行中の server は
+`RESOURCE_EXHAUSTED` で断る。だから空いている server を選ぶのは `crawl_host` の仕事 ——
+`u/admin/browserhive_endpoints` の一覧を順に試し、busy なら次へ、届かない口はその
+呼び出しの間は飛ばし、全部 busy なら 0.5〜1.5 秒待ってもう一周する。1 つも届かない
+ときだけ `ServerUnavailable` を投げ、段ごと失敗させる。
+
+帰結が 2 つ:
+
+- **`host_parallelism` は口の数で頭打ち。** `plan_level` が
+  `parallelism = max(1, min(host_parallelism, 口の数))` を返し、for-loop はそれを使う。
+  browser より多くのホストを並列にしても、busy を引いて待つホストが増えるだけ。
+- **再試行はこちらに移った。** BrowserHive は server 側で再試行しなくなった —— あちらで
+  再試行すると、ここで測っている間隔を素通りする。一過性の失敗（`connection` /
+  `timeout` / `internal`）はもう一度だけ試す。そのホストへの他のアクセスと同じ間隔を
+  空けてから。
+
 ## 設定は変数から読む
 
 `crawl_host` と `report_level` と `index_level` は接続先を**引数では受けない**。
 Windmill は schema の既定値を **UI からの実行にしか埋めない**ので、webhook で
-起こすと何も届かない —— `browserhive_target` が undefined で
+起こすと何も届かない —— BrowserHive の宛先が undefined で
 「Channel target must be a string」になった。
 
 引数で届くのは、そのクロールについて capture-ledger が決めて**必ず送る**もの —— URL と
@@ -75,7 +93,7 @@ Windmill は schema の既定値を **UI からの実行にしか埋めない**�
 
 ```sh
 pnpm run windmill:capture-ledger-token   # waggle_token / waggle_api_url /
-                                 # browserhive_target / browserhive_tls_ca
+                                 # browserhive_endpoints / browserhive_tls_ca
 pnpm run windmill:push-proto     # browserhive の proto (resource)
 ```
 

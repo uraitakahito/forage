@@ -162,7 +162,7 @@ is not exposed in the UI.
 
 <Image
   src={variables}
-  alt="Variables: waggle_token masked, the others show browserhive_target and so on"
+  alt="Variables: waggle_token masked, the others show browserhive_endpoints and so on"
 />
 
 `browserhive_proto` lives in Resources, not Variables. But its
@@ -193,13 +193,13 @@ schedule). Variables and resources are provisioned by separate scripts.
 Confuse the two and push stays green while the flow dies with
 `Resource not found` (failure ① above).
 
-| Path                         | Contents                                                             | Provisioned by                  |
-| ---------------------------- | -------------------------------------------------------------------- | ------------------------------- |
-| `u/admin/waggle_token`       | JWT for capture-ledger (secret)                                      | `windmill:capture-ledger-token` |
-| `u/admin/waggle_api_url`     | Where the capture-ledger API is (default `http://192.168.64.1:7070`) | same                            |
-| `u/admin/browserhive_target` | gRPC target `browserhive.capture-ledger:50051`                       | same                            |
-| `u/admin/browserhive_tls_ca` | TLS CA (empty = plaintext)                                           | same                            |
-| `u/admin/browserhive_proto`  | Copy of `capture.proto` (read by `crawl_host`)                       | `windmill:push-proto`           |
+| Path                            | Contents                                                                                                                                | Provisioned by                  |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| `u/admin/waggle_token`          | JWT for capture-ledger (secret)                                                                                                         | `windmill:capture-ledger-token` |
+| `u/admin/waggle_api_url`        | Where the capture-ledger API is (default `http://192.168.64.1:7070`)                                                                    | same                            |
+| `u/admin/browserhive_endpoints` | JSON array of gRPC targets, one per BrowserHive (default `["browserhive-1.capture-ledger:50051","browserhive-2.capture-ledger:50051"]`) | same                            |
+| `u/admin/browserhive_tls_ca`    | TLS CA (empty = plaintext)                                                                                                              | same                            |
+| `u/admin/browserhive_proto`     | Copy of `capture.proto` (read by `crawl_host`)                                                                                          | `windmill:push-proto`           |
 
 **`windmill:push-proto` is not part of `windmill:push`.** Whenever the proto
 is refreshed, run it again — Windmill reads this copy, not the submodule.

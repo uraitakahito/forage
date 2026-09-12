@@ -37,9 +37,9 @@ pnpm run check       # format / env / typecheck / 単体
 
 `captureHost` を `crawl_host.ts` から export してあるのは、間隔のループを偽の client で
 回すため —— `call()` は `client[method](req, cb)` を呼ぶだけなので、偽物はただの
-オブジェクトで足りる。`pollMs` を引数にしてあるのは、**実タイマーの ms スケール**で
-書くため。fake timer は、この workspace の別の場所で capture 系の sleep に対して試して
-一往復溶かしている。
+オブジェクトで足りる。`retry`（全 BrowserHive が busy のときの待ち幅）を引数にして
+あるのは、**実タイマーの ms スケール**で書くため。fake timer は、この workspace の
+別の場所で capture 系の sleep に対して試して一往復溶かしている。
 
 ## e2e は本物のクロールを 1 本起こす
 
@@ -68,8 +68,8 @@ e2e のほうは capture-fixtures が禁じられたページを受け取った�
 以前は覆いが 1 つも無かった —— `POLL_INTERVAL_MS` が 15 秒の定数で、しかも sleep が
 最初の問い合わせより**前**に入るため、試験 1 本が 15 秒かかったから。
 
-いまは `poll_interval_ms` を引数で受ける。`crawl_host.ts` に対してやったのと同じ
-3 行で、実タイマーの ms スケールで回せる。
+いまは `poll_interval_ms` を引数で受ける。`crawl_host` の busy 待ちと同じ手で、
+実タイマーの ms スケールで回せる。
 
 知っておくべき砦はこれ:
 
