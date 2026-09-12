@@ -1,6 +1,7 @@
 {
   "dependencies": {
-    "robots-parser": "latest"
+    "robots-parser": "latest",
+    "windmill-client": "latest"
   }
 }
 //bun.lock
@@ -11,10 +12,13 @@
     "": {
       "dependencies": {
         "robots-parser": "latest",
+        "windmill-client": "latest",
       },
     },
   },
   "packages": {
     "robots-parser": ["robots-parser@3.0.1", "", {}, "sha512-s+pyvQeIKIZ0dx5iJiQk1tPLJAWln39+MI5jtM8wnyws+G5azk+dMnMX0qfbqNetKKNgcWWOdi0sfm+FbQbgdQ=="],
+
+    "windmill-client": ["windmill-client@1.808.0", "", {}, "sha512-HOXgFTFmqDwmXp3t0Jxbx2DLxKsIhmxD1OYUG8F55yE+D6S/353hN1W1Rpi/NhDSi1OgPBhUJjuuvWfCMaWfmA=="],
   }
 }

@@ -18,7 +18,7 @@
  *      一時的に消す / waggle_api_url を一時的に曲げると再現できる (どちらも
  *      2026-09-11 に実際に起きた形)。run の ID は API から拾うので直書きは無い。
  *
- *   node scripts/docs-shots.mjs        # CI では走らせない —— 実機が要る
+ *   pnpm run docs:shots                # CI では走らせない —— 実機が要る
  *
  * 実装で分かった UI の癖 (2026-09-11、CE v1.806.0 実測):
  *   - workspace は URL に入らない (「/w/crawler/runs」は SPA が 404 を返す)。
@@ -30,11 +30,15 @@
  *     既定タブ (Workspace) には出ない。**States タブをクリック**してから撮る
  */
 import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
-import { resolve, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
 import puppeteer, { type Page } from "puppeteer";
+import { repoRoot } from "./env.js";
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+// **`import.meta.url` から辿らない。** この script は `dist/scripts/` から走るので、
+// そこから 1 つ上は `dist/` —— PNG を `dist/docs-site/...` に書こうとして ENOENT で
+// 落ちた (TypeScript 化のあと最初に撮り直した 2026-09-12 に実測)。他の script と
+// 同じく、`pnpm run` の cwd = repo root を使う。
+const ROOT = repoRoot();
 const OUT = resolve(ROOT, "docs-site/src/assets/windmill-ui");
 const BASE = process.env["WINDMILL_URL"] ?? "http://127.0.0.1:8000";
 const EMAIL = process.env["WINDMILL_EMAIL"] ?? "admin@windmill.dev";

@@ -21,8 +21,16 @@
  * `Crawl-delay` があれば、設定した間隔と比べて**長いほうを採る**。相手が言っている値を
  * こちらの都合で縮めない。実測: 設定 1000ms に対して capture-fixtures の `Crawl-delay: 3` が
  * 勝ち、間隔は 3203 / 3014 / 3006ms になった。
+ *
+ * ## 並列度は BrowserHive の口の数で頭を押さえる
+ *
+ * BrowserHive は browser 1 台に口 1 つで、走行中の口は `RESOURCE_EXHAUSTED` で断る
+ * (`crawl_host.ts`)。口より多くのホストを同時に回しても、余ったぶんは busy を引いて
+ * 待つだけで相手から見た並列度は増えない。だから for-loop に渡す `parallelism` は
+ * `min(host_parallelism, 口の数)` —— 決めるのはここで、flow の式には置かない。
  */
 import robotsParser from "robots-parser";
+import * as wmill from "windmill-client";
 
 /** BrowserHive の User-Agent はブラウザのものなので、robots では `*` の規則を見る。 */
 const USER_AGENT = "*";
@@ -58,7 +66,39 @@ export interface Plan {
   groups: HostGroup[];
   /** 取らなかったものと理由。capture-ledger に報告して `crawl_pages` に残す。 */
   skipped: Skipped[];
+  /** for-loop に渡す同時数。`host_parallelism` を BrowserHive の口の数で頭打ちにしたもの。 */
+  parallelism: number;
 }
+
+/** flow の schema と同じ既定。webhook 起動では schema の既定値が埋まらないのでここにも要る。 */
+const DEFAULT_HOST_PARALLELISM = 4;
+
+/**
+ * `u/admin/browserhive_endpoints` (文字列の JSON 配列) の要素数。
+ *
+ * 形の検査は `crawl_host.ts` の `parseEndpoints` と同じ —— 口が 1 つも無い一覧を
+ * 「並列度 0」として通すと、for-loop は何も回さずに段が空で成功する。
+ */
+export const endpointCount = (raw: string): number => {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error(`browserhive_endpoints が JSON ではありません: ${raw.slice(0, 80)}`);
+  }
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    throw new Error(
+      `browserhive_endpoints は空でない文字列の配列にしてください: ${raw.slice(0, 80)}`,
+    );
+  }
+  return parsed.length;
+};
+
+/** 1 以上、口の数以下。`null` は「渡されていない」で、flow の schema と同じ既定に落とす。 */
+export const parallelismFor = (
+  hostParallelism: number | null | undefined,
+  endpoints: number,
+): number => Math.max(1, Math.min(hostParallelism ?? DEFAULT_HOST_PARALLELISM, endpoints));
 
 /**
  * robots.txt を引く。
@@ -82,6 +122,7 @@ export async function main(
   candidates: Candidate[],
   per_host_delay_ms: number,
   respect_robots: boolean | null = true,
+  host_parallelism: number | null = null,
 ): Promise<Plan> {
   // **`null` を「未設定」として扱う。既定引数では足りない。**
   //
@@ -145,6 +186,9 @@ export async function main(
     groups.push({ host, urls: allowed, delayMs, initialDelayMs });
   }
 
+  const endpoints = endpointCount(await wmill.getVariable("u/admin/browserhive_endpoints"));
+  const parallelism = parallelismFor(host_parallelism, endpoints);
+
   const total = groups.reduce((n, g) => n + g.urls.length, 0);
   // **robots を読んだかどうかを必ず出す。** 「見送り 0 件」は「規則が無い」と
   // 「規則を読んでいない」の両方に見えるので、区別が付くようにしておく。
@@ -152,8 +196,8 @@ export async function main(
     `${String(groups.length)} ホスト / ${String(total)} URL` +
       ` (robots: ${respectRobots ? "尊重" : "無視"}` +
       (skipped.length > 0 ? `、${String(skipped.length)} 件を見送り` : "") +
-      ")",
+      `、同時 ${String(parallelism)} ホスト / 口 ${String(endpoints)})`,
   );
 
-  return { groups, skipped };
+  return { groups, skipped, parallelism };
 }

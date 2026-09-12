@@ -24,10 +24,18 @@ guardEnv();
 
 const ISSUER = optional("CAPTURE_LEDGER_OIDC_ISSUER", "http://127.0.0.1:9099");
 const SUBJECT = optional("CAPTURE_LEDGER_SUBJECT", "windmill");
-const BROWSERHIVE_TARGET = optional(
-  "CAPTURE_LEDGER_BROWSERHIVE_TARGET",
-  "browserhive.capture-ledger:50051",
-);
+/**
+ * browserhive の gRPC の宛先。**browser 1 台に口 1 つなので複数**。カンマ区切りで受け、
+ * 変数には JSON 配列で入れる (Windmill の変数は文字列なので、形を 1 つに決めておく)。
+ * 空いている口を選ぶのは `crawl_host` で、並列度の上限にするのは `plan_level`。
+ */
+const BROWSERHIVE_ENDPOINTS = optional(
+  "CAPTURE_LEDGER_BROWSERHIVE_ENDPOINTS",
+  "browserhive-1.capture-ledger:50051,browserhive-2.capture-ledger:50051",
+)
+  .split(",")
+  .map((s) => s.trim())
+  .filter((s) => s !== "");
 const ORGANIZATIONS = optional("CAPTURE_LEDGER_ORGANIZATIONS", "acme")
   .split(",")
   .map((s) => s.trim())
@@ -37,11 +45,10 @@ const EXPIRES_IN = optional("CAPTURE_LEDGER_TOKEN_EXPIRES_IN", "30d");
 const TOKEN_PATH = "u/admin/waggle_token";
 const URL_PATH = "u/admin/waggle_api_url";
 /**
- * browserhive の gRPC の宛先。**Windmill の script は変数からしか読めない** ——
- * schema の既定値は UI からの実行にしか埋まらないので、webhook で起こすと引数は
- * 素通りになる (実測)。だから設定は変数に置く。
+ * **Windmill の script は変数からしか読めない** —— schema の既定値は UI からの実行にしか
+ * 埋まらないので、webhook で起こすと引数は素通りになる (実測)。だから設定は変数に置く。
  */
-const TARGET_PATH = "u/admin/browserhive_target";
+const ENDPOINTS_PATH = "u/admin/browserhive_endpoints";
 /**
  * browserhive の gRPC を TLS にするときの CA 証明書 (PEM)。
  *
@@ -121,13 +128,18 @@ const main = async () => {
   const jwt = await mintToken();
   const tokenAction = await upsertVariable(windmillToken, TOKEN_PATH, jwt, true);
   const urlAction = await upsertVariable(windmillToken, URL_PATH, ledgerApiUrl(), false);
-  const targetAction = await upsertVariable(windmillToken, TARGET_PATH, BROWSERHIVE_TARGET, false);
+  const endpointsAction = await upsertVariable(
+    windmillToken,
+    ENDPOINTS_PATH,
+    JSON.stringify(BROWSERHIVE_ENDPOINTS),
+    false,
+  );
   const tlsAction = await upsertVariable(windmillToken, TLS_CA_PATH, TLS_CA_PEM, false);
 
   process.stderr.write(
     `${TOKEN_PATH} を${tokenAction} (sub=${SUBJECT} orgs=${ORGANIZATIONS.join(",")} exp=${EXPIRES_IN})\n` +
       `${URL_PATH} を${urlAction} (${ledgerApiUrl()})\n` +
-      `${TARGET_PATH} を${targetAction} (${BROWSERHIVE_TARGET})\n` +
+      `${ENDPOINTS_PATH} を${endpointsAction} (${BROWSERHIVE_ENDPOINTS.join(", ")})\n` +
       `${TLS_CA_PATH} を${tlsAction} (${TLS_CA_PEM === "" ? "空 = 平文" : "CA あり"})\n\n` +
       `付与を忘れずに:  cd ../capture-ledger && pnpm run fga:grant submitter ${SUBJECT} ${ORGANIZATIONS[0] ?? "acme"}\n`,
   );

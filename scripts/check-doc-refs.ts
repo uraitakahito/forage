@@ -21,7 +21,7 @@
  *      台帳なので参照検査から除く。
  *   5. スクショの版 —— shots-manifest.json の windmillVersion が docker-compose.yml の
  *      windmill の pin と一致するか。**compose を上げたら撮り直せ** を機械で言う。
- *      UI が変わったのに写真が古い、を緑で出荷させない (scripts/docs-shots.mjs が撮る)。
+ *      UI が変わったのに写真が古い、を緑で出荷させない (pnpm run docs:shots が撮る)。
  *
  * 訳について見るのはページの **存在** だけで、構造は一切見ない。両方の言語に同じ
  * 見出しを強いると日本語が悪くなる。ページの歩調を合わせるのは人の仕事で、
@@ -142,7 +142,7 @@ if (existsSync(SHOTS_DIR)) {
   // ── 5. スクショの版 == compose の pin ──────────────────────────────
   const manifestPath = join(SHOTS_DIR, "shots-manifest.json");
   if (!existsSync(manifestPath)) {
-    problems.push("assets/windmill-ui/shots-manifest.json が無い (docs-shots.mjs で撮ること)");
+    problems.push("assets/windmill-ui/shots-manifest.json が無い (pnpm run docs:shots で撮ること)");
   } else {
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
     const compose = readFileSync(resolve(ROOT, "docker-compose.yml"), "utf8");
@@ -152,7 +152,7 @@ if (existsSync(SHOTS_DIR)) {
     } else if (manifest.windmillVersion !== pin[1]) {
       problems.push(
         `スクショが古い: shots-manifest.json は windmill ${String(manifest.windmillVersion)} だが ` +
-          `compose の pin は ${pin[1]} —— UI が変わっている。scripts/docs-shots.mjs で撮り直すこと`,
+          `compose の pin は ${pin[1]} —— UI が変わっている。pnpm run docs:shots で撮り直すこと`,
       );
     }
   }

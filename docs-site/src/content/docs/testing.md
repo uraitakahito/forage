@@ -39,9 +39,10 @@ stay open.
 
 `captureHost` is exported from `crawl_host.ts` so the pacing loop can be driven
 with a fake client — `call()` only does `client[method](req, cb)`, so the fake is
-a plain object. Its `pollMs` argument exists so tests run on **real timers at
-millisecond scale**; fake timers were tried against capture-style sleeps
-elsewhere in this workspace and cost a round trip.
+a plain object. Its `retry` argument — how long to wait when every BrowserHive
+is busy — exists so tests run on **real timers at millisecond scale**; fake
+timers were tried against capture-style sleeps elsewhere in this workspace and
+cost a round trip.
 
 ## The end-to-end test starts a real crawl
 
@@ -72,8 +73,8 @@ capture-ledger, so the trigger script is never in the picture. It used to have n
 coverage at all, because `POLL_INTERVAL_MS` was a 15-second constant and the
 sleep happens _before_ the first poll — one test, fifteen seconds.
 
-It now takes `poll_interval_ms` as an argument, the same 3-line change made to
-`crawl_host.ts`, so the loop runs on real timers at millisecond scale.
+It now takes `poll_interval_ms` as an argument — the same trick as
+`crawl_host`'s busy wait — so the loop runs on real timers at millisecond scale.
 
 The guard worth knowing about is this one:
 
