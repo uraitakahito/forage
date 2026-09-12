@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { main, type Candidate } from "../windmill/f/waggle/plan_level.js";
+import {
+  endpointCount,
+  main,
+  parallelismFor,
+  type Candidate,
+} from "../windmill/f/waggle/plan_level.js";
 
 /**
  * 段の計画。**この repo の Windmill script で唯一、判断が集まっている場所。**
@@ -11,6 +16,15 @@ import { main, type Candidate } from "../windmill/f/waggle/plan_level.js";
  * 読まれない状態が出荷された。**クロールは成功し、アーカイブも正常に見えた** ——
  * capture-fixtures のフィクスチャで実際に取りに行った先を見るまで気づけなかった。
  */
+
+/** BrowserHive の口の一覧。並列度の上限になる。試験は 2 つで固定。 */
+const VARS: Record<string, string> = {
+  "u/admin/browserhive_endpoints": JSON.stringify(["bh-1:50051", "bh-2:50051"]),
+};
+
+vi.mock("windmill-client", () => ({
+  getVariable: (path: string) => Promise.resolve(VARS[path]),
+}));
 
 /** robots.txt を返す fetch。呼ばれた URL を記録する。 */
 const robotsServing = (body: string | undefined) => {
@@ -185,5 +199,42 @@ describe("ホストで束ねる", () => {
 
     expect(plan.groups[0]!.urls).toEqual(["http://m:8080/links/leaf/1"]);
     expect(plan.skipped).toEqual([{ url: "http://m:8080/links/hidden", reason: "robots" }]);
+  });
+});
+
+describe("並列度は BrowserHive の口の数で頭を押さえる", () => {
+  /**
+   * 口より多くのホストを同時に回しても、余ったぶんは busy を引いて待つだけで
+   * 相手から見た並列度は増えない。決めるのはここで、flow の式には置かない。
+   */
+  it("host_parallelism が口より多ければ口の数", () => {
+    expect(parallelismFor(4, 2)).toBe(2);
+  });
+
+  it("host_parallelism が口より少なければそのまま", () => {
+    expect(parallelismFor(1, 2)).toBe(1);
+  });
+
+  it("渡されていなければ flow の schema と同じ既定 (4) から始める", () => {
+    // webhook 起動では schema の既定値が埋まらず null で届く。
+    expect(parallelismFor(null, 8)).toBe(4);
+    expect(parallelismFor(undefined, 2)).toBe(2);
+  });
+
+  it("0 以下でも 1 は回す", () => {
+    // 0 のままだと for-loop が何も回さず、段が空で「成功」する。
+    expect(parallelismFor(0, 2)).toBe(1);
+  });
+
+  it("plan に載せる", async () => {
+    robotsServing(undefined);
+    const plan = await main([at("http://m:8080/a")], 1000, true, 4);
+    expect(plan.parallelism).toBe(2);
+  });
+
+  it("口の一覧が空なら落ちる", () => {
+    // 「並列度 0」として通すと、for-loop は何も回さずに段が空で成功する。
+    expect(() => endpointCount("[]")).toThrow("空でない");
+    expect(() => endpointCount("bh-1:50051")).toThrow("JSON");
   });
 });

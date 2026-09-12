@@ -35,6 +35,10 @@ schema:
       type: boolean
       description: ""
       default: true
+    host_parallelism:
+      type: integer
+      description: ""
+      default: null
   required:
     - candidates
     - per_host_delay_ms

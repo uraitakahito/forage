@@ -4,38 +4,29 @@ package browserhive.v1;
 
 // BrowserHive の capture API。
 //
-// HTTP との対応で決めたことが 2 つある:
+// **1 往復で結果が返る。** `Capture` は取り込みが終わるまで返らず、応答に結果を載せる。
+// 以前は HTTP の 202 に倣って「受理して taskId を返し、あとで GetCapture で取りに来る」
+// 形だったが、その理由(proxy の timeout)は gRPC + HTTP/2 の LAN 内配備には無く、
+// 形だけが残って呼ぶ側にポーリングを強いていた。
 //
-//   1. 202 を state に移した。HTTP では「受理 = 202」「取得は処理中なら 202、
-//      完了で 200」とステータスコードで進行を表していた。gRPC に 202 は無いので、
-//      GetCaptureResponse.state に持たせる。呼ぶ側は code ではなく state を見る。
-//   2. 失敗は gRPC の status code で返す。RFC 7807 の Problem は落とした。
-//      対応は request-mapper / handlers 側のコメントに書いてある。
+// この server は **browser 1 台ぶん** しか知らない。並列は呼ぶ側(orchestrator)が
+// endpoint を並べて作る。だから queue も pool も無く、走行中に呼ばれたら待たせずに
+// RESOURCE_EXHAUSTED を返す —— 空いている台を探すのは呼ぶ側の仕事。
+//
+// 失敗は gRPC の status code で返す。対応は handlers 側のコメントに書いてある。
 service CaptureService {
-  // capture を投入する。fire-and-forget —— 受理した時点で返り、実際の capture は
-  // worker pool が非同期に進める。結果は GetCapture で取る。
-  rpc SubmitCapture(SubmitCaptureRequest) returns (SubmitCaptureResponse);
-
-  // 投入した capture の現在。まだ終わっていなければ state が PENDING か PROCESSING で
-  // report は空。
-  rpc GetCapture(GetCaptureRequest) returns (GetCaptureResponse);
-
-  // 投入した capture が **いまどこにいるか**。GetCapture が「結果」を返すのに対し、
-  // こちらは「途中」を返す —— 結果は運ばない。
+  // 取り込んで、**結果を返す**。受理では返らない。
   //
-  // GetCapture と違って PROCESSING を実際に返す。待っている側にとって
-  // 「キューで順番待ち」と「worker が抱えて走っている」は別の意味を持つため
-  // (前者は混雑、後者は取り込みそのものが遅い or 詰まっている)。
+  //   検証エラー            -> INVALID_ARGUMENT
+  //   走行中(1 台 1 件)      -> RESOURCE_EXHAUSTED  呼ぶ側は別の台へ、無ければ少し待って再度
+  //   browser に繋がらない   -> UNAVAILABLE
   //
-  // GetServerStatus ではなくこちらを使うこと。あちらは全 worker とキュー全体を
-  // 返すので、待っている client が 2 秒ごとに引くと、キューの長さ × client 数で
-  // 効いてくる。
-  rpc GetCaptureProgress(GetCaptureProgressRequest) returns (GetCaptureProgressResponse);
+  // client が途中で切っても取り込みは最後まで走る(manifest は書かれる)。
+  rpc Capture(CaptureRequest) returns (CaptureResponse);
 
-  // キューと coordinator の現在。**サーバ全体**の話で、タスク 1 件のことは言わない
-  // —— 投入した capture の現在は GetCapture のほう。名前に Server が入っているのは
-  // その境界を名前で言うためで、以前は GetStatus という名前だったものをこのコメント
-  // だけで補っていた。
+  // この台の現在。**server 全体**の話で、取り込み 1 件のことは言わない —— 結果は
+  // Capture の応答にしか無い。health と版の probe、それと呼ぶ側が「いま塞がっているか」
+  // を投げる前に知るために在る。
   rpc GetServerStatus(GetServerStatusRequest) returns (GetServerStatusResponse);
 }
 
@@ -50,38 +41,12 @@ enum CaptureStatus {
   CAPTURE_STATUS_HTTP_ERROR = 4;
 }
 
-// GetCapture の進行。
-// タスクがいまどこにいるか。GetCapture と GetCaptureProgress は **同じ瞬間に同じ値**
-// を返す —— どちらを呼んだかで意味が変わらないように。
-//
-// PENDING と PROCESSING を分けるのは、PENDING が「キューで待っている」という具体的な
-// 意味を持つ値だから。worker が既に抱えているタスクにそう答えるのは、粗いのではなく
-// 事実と違う。
-enum CaptureState {
-  CAPTURE_STATE_UNSPECIFIED = 0;
-  // キューで順番を待っている。
-  CAPTURE_STATE_PENDING = 1;
-  // worker が抱えて走らせている (リトライ中もここ)。
-  CAPTURE_STATE_PROCESSING = 2;
-  // 終わった。GetCapture なら report が付く。
-  CAPTURE_STATE_DONE = 3;
-}
-
 // 署名の検査 1 つぶんの結果。
 enum CheckOutcome {
   CHECK_OUTCOME_UNSPECIFIED = 0;
   CHECK_OUTCOME_OK = 1;
   CHECK_OUTCOME_FAILED = 2;
   CHECK_OUTCOME_SKIPPED = 3;
-}
-
-// worker の健康状態。
-enum WorkerHealth {
-  WORKER_HEALTH_UNSPECIFIED = 0;
-  WORKER_HEALTH_READY = 1;
-  WORKER_HEALTH_BUSY = 2;
-  WORKER_HEALTH_ERROR = 3;
-  WORKER_HEALTH_DISCONNECTED = 4;
 }
 
 // 失敗の分類。
@@ -95,6 +60,8 @@ enum ErrorType {
   // 成果物を受け口へ押し出せなかった。**この経路には待ち場所が無い**ので、
   // 取り込みは丸ごと失われている。受け口を直して投げ直す。
   ERROR_TYPE_ARTIFACT_SINK = 6;
+  // 呼ぶ側が途中で切った(deadline / cancel)。取り込みは打ち切られ、成果物は残らない。
+  ERROR_TYPE_CANCELLED = 7;
 }
 
 // この取り込みが、前のタスクの残留物を持ち越すかどうか。
@@ -291,7 +258,9 @@ message ArtifactSink {
   string token = 2;
 }
 
-message SubmitCaptureRequest {
+// Capture の要求。取り込みの中身を全部ここで決める —— 応答は結果そのもの
+// (`CaptureResponse`)で、受理の印は無い。
+message CaptureRequest {
   string url = 1;
   // 成果物のファイル名に入る札。使える文字の制限は無い —— 名前を組むときに
   // 区切りと衝突する文字は %XX へ逃がされるので、空白も `_` も `/` も日本語も
@@ -403,27 +372,15 @@ message SubmitCaptureRequest {
   optional ArtifactSink artifact_sink = 25;
 }
 
-message GetCaptureRequest {
-  string task_id = 1;
-}
-
-message GetCaptureProgressRequest {
-  string task_id = 1;
-}
-
-message GetServerStatusRequest {
-  // 返す pending task の上限。0–200 で、省略時は 50。proto は値域を持てないので、
-  // 既定を当てるのも範囲の検査も handler の仕事。
-  optional int32 pending_limit = 1;
-}
+message GetServerStatusRequest {}
 
 // -- 結果 ------------------------------------------------------------------
 
-message SubmitCaptureResponse {
-  // 失敗は status code で返るので、ここに来るのは受理されたときだけ。
-  bool accepted = 1;
-  string task_id = 2;
-  optional string correlation_id = 3;
+// Capture の応答。結果そのもの。
+message CaptureResponse {
+  // 成果物と manifest(`.result.json`)の鍵。ここで初めて呼ぶ側に渡る。
+  string task_id = 1;
+  CaptureResultReport report = 2;
 }
 
 // 成果物の置き場所 (s3://…)。取得しなかった形式は空のまま。
@@ -496,8 +453,6 @@ message CaptureResultReport {
   optional int32 http_status_code = 6;
   string timestamp = 7;
   int32 capture_processing_time_ms = 8;
-  int32 retry_count = 9;
-  int32 worker_index = 10;
   CaptureArtifacts artifacts = 11;
   optional WaczStats wacz_stats = 12;
   optional WaczCompleteness completeness = 13;
@@ -505,141 +460,14 @@ message CaptureResultReport {
   optional CaptureErrorDetails error_details = 15;
 }
 
-// GetCapture の答え。state と report は独立していない —— report が入るのは state が
-// DONE のときだけで、その対応を protobuf で書く手段が無いため、型ではなく約束として
-// 守られている。
-message GetCaptureResponse {
-  CaptureState state = 1;
-
-  // 触る前に `state == DONE` を確かめること。`state != PENDING` では足りない ——
-  // PENDING と PROCESSING はどちらも「まだ終わっていない」側で、**この RPC は
-  // その両方を返す**。
-  //
-  // 確かめずに読むと status = 0 (CAPTURE_STATUS_UNSPECIFIED) を掴む。言語によっては
-  // 落ちもしない。そして「SUCCESS ではない」は「失敗した」と区別が付かないので、
-  // まだ走っている取り込みが失敗として台帳に載る。
-  optional CaptureResultReport report = 2;
-}
-
-// 取り込みが **終わる前** の様子。どのフィールドが入るかは state で決まる。
-message CaptureProgress {
-  // キューに入ってからの時間。requeue が enqueued_at を保つので、リトライを
-  // またいでも「本当に待っている時間」になる。
-  int32 queued_ms = 1;
-
-  // 何度目の試行か。0 のまま増えなければ順調。増えていれば、前の試行が
-  // 持ち時間を使い切った —— これが「詰まっている」の信号。あと何回やり直せるかは
-  // attempts_remaining が持つ (上限そのものは wire に出ていない)。
-  int32 retry_count = 2;
-
-  // PROCESSING のときだけ。いまの試行が始まってからの経過。どこまで来たかは
-  // これ単体では分からない —— 1 回の試行に与えられている時間は wire に出ていない。
-  // 「あとどれだけか」は worst_case_remaining_ms を見ること。
-  optional int32 elapsed_ms = 3;
-  optional int32 worker_index = 4;
-
-  // PENDING のときだけ。0 が先頭。切り詰めない探索で数えるので、キューが
-  // 深くても正しい (GetServerStatus の pending_tasks は pending_limit で
-  // 切られるので、そこからは数えられない)。
-  optional int32 queue_position = 5;
-
-  // PROCESSING のときだけ。許される限りすべてが悪く進んでも、これだけ待てば
-  // 終端 (DONE) に至る。「いまの試行の残り」+「残りの試行 × 1 回ぶんの持ち時間」。
-  //
-  // **見積もりではない** —— server が自分に課している上限そのもの。これを超えても
-  // DONE が来ないなら、遅い取り込みではなく server の異常。client 側に
-  // 「だいたいこれくらい」という定数を置く必要は無くなる。
-  //
-  // ただし厳密な上界ではない: 上限が掛かるのは取り込み処理の部分で、dequeue から
-  // 成果物のアップロードまでの全体ではない。実測では試行 1 回あたり 300ms 弱を
-  // 超過する。猶予を詰めすぎると、正常な取り込みを異常と判定する。
-  //
-  // PENDING には付かない。順番待ちの長さは他人の仕事の量で決まり、server は
-  // そこに上限を課していない。数字を入れれば、それは予報になる。
-  optional int32 worst_case_remaining_ms = 6;
-
-  // PROCESSING のときだけ。あと何回やり直せるか。0 なら、この試行が最後。
-  //
-  // retry_count からは導けない —— 上限 (max_retry_count) は wire に出ていない。
-  optional int32 attempts_remaining = 7;
-}
-
-message GetCaptureProgressResponse {
-  CaptureState state = 1;
-
-  // state != DONE のときに入る。DONE なら report を GetCapture で取ること
-  // —— こちらは結果を運ばない。
-  optional CaptureProgress progress = 2;
-}
-
 // -- status ----------------------------------------------------------------
 
-message ErrorTaskInfo {
-  string task_id = 1;
-  string url = 2;
-  repeated string labels = 3;
-}
-
-message ErrorRecord {
-  ErrorType type = 1;
-  string message = 2;
-  optional int32 http_status_code = 3;
-  optional string http_status_text = 4;
-  optional int32 timeout_ms = 5;
-  string timestamp = 6;
-  optional ErrorTaskInfo task = 7;
-}
-
-message BrowserOptions {
-  string browser_url = 1;
-}
-
-message CurrentTask {
-  string task_id = 1;
-  string url = 2;
-  repeated string labels = 3;
-  optional string correlation_id = 4;
-  string started_at = 5;
-  int32 elapsed_ms = 6;
-  int32 retry_count = 7;
-}
-
-message WorkerInfo {
-  int32 index = 1;
-  BrowserOptions browser_options = 2;
-  WorkerHealth health = 3;
-  int32 processed_count = 4;
-  int32 error_count = 5;
-  repeated ErrorRecord error_history = 6;
-  optional CurrentTask current_task = 7;
-}
-
-message PendingTask {
-  string task_id = 1;
-  string url = 2;
-  repeated string labels = 3;
-  optional string correlation_id = 4;
-  string enqueued_at = 5;
-  int32 queued_ms = 6;
-  int32 retry_count = 7;
-}
-
-message ProcessingTask {
-  string task_id = 1;
-  string url = 2;
-  repeated string labels = 3;
-  optional string correlation_id = 4;
-  string enqueued_at = 5;
-  int32 queued_ms = 6;
-  int32 retry_count = 7;
-  int32 worker_index = 8;
-  string started_at = 9;
-  int32 elapsed_ms = 10;
-}
-
-message QueueSnapshot {
-  repeated PendingTask pending_tasks = 1;
-  repeated ProcessingTask processing_tasks = 2;
+// この台が抱えている browser。
+message BrowserStatus {
+  string url = 1;
+  bool connected = 2;
+  // Chromium が自称する版(例 `Chrome/150.0.7871.181`)。接続していないときは無い。
+  optional string version = 3;
 }
 
 message BuildInfo {
@@ -669,22 +497,11 @@ message ServerLimits {
 }
 
 message GetServerStatusResponse {
-  int32 pending = 1;
-  int32 processing = 2;
-  int32 succeeded = 3;
-  int32 failed = 4;
-  int32 operational_workers = 5;
-  int32 total_workers = 6;
-  bool is_running = 7;
-  bool is_degraded = 8;
-  repeated WorkerInfo workers = 9;
-  QueueSnapshot queue = 10;
-  BuildInfo build = 11;
-  ServerLimits limits = 12;
-  // 取り込みが policy を指定しなかったときに効くもの。順序のまま。
-  //
-  // 晒すのは、呼ぶ側が「既定とだいたい同じ、ただし 1 つだけ違う」を組み立てられる
-  // ようにするため —— url_policies は丸ごと置き換えなので、足すには既定を知る必要がある。
-  repeated UrlPolicy default_url_policies = 13;
-  repeated ContentTypePolicy default_content_type_policies = 14;
+  // 走行中の取り込みが在るか。true のとき Capture は RESOURCE_EXHAUSTED を返す。
+  bool busy = 1;
+  BrowserStatus browser = 2;
+  BuildInfo build = 3;
+  ServerLimits limits = 4;
+  repeated UrlPolicy default_url_policies = 5;
+  repeated ContentTypePolicy default_content_type_policies = 6;
 }

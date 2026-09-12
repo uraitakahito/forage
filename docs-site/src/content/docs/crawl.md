@@ -39,11 +39,11 @@ structure:
 
 This is the part that looks like a detail and is not.
 
-BrowserHive's `TaskQueue` has **no capacity limit and never refuses a
-submission**. The only thing bounding concurrency is the number of workers. So
-submitting three URLs with pauses between the submissions changes nothing — they
-queue up and run back to back. **A gap on the submitting side never reaches the
-other server.**
+How long a capture takes is not known up front — one page is two seconds, the
+next is two minutes. So a gap measured from the submission says nothing about
+the gap the other server feels: the next request can land the moment the
+previous capture ends. **A gap on the submitting side never reaches the other
+server.**
 
 The gap only becomes real when it sits between one page finishing and the next
 being submitted:
@@ -68,19 +68,41 @@ Note `Math.max`, not `Math.min`. **We do not shorten what the other side asked
 for.** The two-sided test in `test/plan-level.test.ts` exists because an
 implementation that simply always used robots' value passes a one-sided test.
 
+## One BrowserHive holds one browser
+
+BrowserHive (v9) has no queue and no pool: a `Capture` call is one round trip,
+and a server that is already capturing refuses with `RESOURCE_EXHAUSTED`.
+Picking a free server is therefore `crawl_host`'s job. It reads the list from
+`u/admin/browserhive_endpoints`, tries them in turn — a busy one means "next",
+an unreachable one is skipped for the rest of that call — and when every one is
+busy it waits half a second to a second and a half and goes round again. Only
+when none of them is reachable does it throw `ServerUnavailable`, which fails
+the level.
+
+Two consequences:
+
+- **`host_parallelism` is capped by the number of endpoints.** `plan_level`
+  returns `parallelism = max(1, min(host_parallelism, endpoints))` and the
+  for-loop uses that. More parallel hosts than browsers would only mean more
+  hosts waiting on `busy`.
+- **Retries live here now.** BrowserHive no longer retries on the server side —
+  a retry there would bypass the gap measured here. A capture that fails with a
+  transient error (`connection`, `timeout`, `internal`) is tried once more,
+  after the same gap as any other request to that host.
+
 ## Settings come from variables, not arguments
 
 `crawl_host`, `report_level` and `index_level` do **not** take their connection
 settings as arguments. Windmill fills schema defaults **only for UI-triggered
-runs**, so a webhook run gets nothing — `browserhive_target` arrived `undefined`
-and the job died with "Channel target must be a string".
+runs**, so a webhook run gets nothing — the BrowserHive target arrived
+`undefined` and the job died with "Channel target must be a string".
 
 What does arrive as arguments is what capture-ledger decides for that crawl and always
 sends: the URLs, the delay, and `capture_formats` / `signing`.
 
 ```sh
 pnpm run windmill:capture-ledger-token   # waggle_token / waggle_api_url /
-                                 # browserhive_target / browserhive_tls_ca
+                                 # browserhive_endpoints / browserhive_tls_ca
 pnpm run windmill:push-proto     # BrowserHive's proto (a resource)
 ```
 
