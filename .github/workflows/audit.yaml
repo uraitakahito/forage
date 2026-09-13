@@ -1,0 +1,41 @@
+name: audit
+
+# 既知の脆弱性の門。中身は package.json の `audit` (= `check` の先頭) と同じもの。
+# docs-site も同じ workspace に入っているので、lockfile は pnpm-lock.yaml の 1 本で済む。
+#
+# 勧告は PR と無関係に公開されるので、PR と push に加えて毎日も走らせる。2026-09-13 に
+# yaml (moderate) と esbuild (low) が残っていた。yaml のアラートは開発用の依存として
+# GitHub が自動で閉じ (auto_dismissed)、Dependabot の PR だけが 4 日開いたままで、
+# 何も赤くならなかった。
+#
+# schedule と workflow_dispatch は default branch (main) に在る workflow でしか動かない。
+# develop に入った時点で効くのは pull_request と push。
+#
+# Security:
+#   - permissions は contents:read だけ。secret を 1 つも参照しない。
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+  schedule:
+    - cron: "17 21 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: Known vulnerabilities
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+      # install は要らない —— pnpm audit は lockfile を読む。
+      - name: Audit the lockfile
+        run: pnpm run audit
