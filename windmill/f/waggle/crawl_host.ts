@@ -101,11 +101,16 @@ export interface PageResult {
 }
 
 /**
- * 1 回の `Capture` の deadline。BrowserHive 側の取り込み予算 (130 秒) に、成果物を
- * 書いて応答を組み立てるぶんの余裕を足したもの。server の予算が尽きれば TIMEOUT の
- * report が先に返るので、ここに当たるのは server が固まったときだけ。
+ * 1 回の `Capture` の deadline。内訳は 3 つ:
+ *
+ *   130 秒  BrowserHive の取り込みの予算 (`taskTotalMs`。成果物の書き込みまで含む)
+ *    10 秒  結果の記録 (manifest) を書く予算。v10.0.0 から、server は書き終えてから答える
+ *     5 秒  応答を組み立てて届くまでの余裕
+ *
+ * server の予算が尽きれば TIMEOUT の report が先に返るので、ここに当たるのは server が
+ * 固まったときだけ。server の 2 つの予算のどちらかを広げるなら、先にここを広げること。
  */
-const CAPTURE_DEADLINE_MS = 130_000 + 15_000;
+const CAPTURE_DEADLINE_MS = 130_000 + 10_000 + 5_000;
 
 /** 全 endpoint が busy だったとき、もう一周するまでの待ち。この幅で散らす。 */
 export interface BusyRetry {
@@ -117,6 +122,12 @@ const BUSY_RETRY: BusyRetry = { minMs: 500, maxMs: 1500 };
 /**
  * 一過性の失敗はもう一度だけ試す。server 側の再試行は v9 で無くなった ——
  * あちらで再試行すると、間隔を測っているこちらを素通りして相手に 2 回目が届く。
+ *
+ * `ERROR_TYPE_ARTIFACT_SINK` (成果物を書き込み先へ置けなかった) は**入れない**。
+ * BrowserHive v10.0.0 から、書き込みに答えない保管庫はこの型で返る (無通信 15 秒 × 3 回、
+ * 最悪 65 秒)。保管庫が壊れているときにページごと撮り直すと、1 ページあたり撮影と 65 秒を
+ * 捨て、相手へのアクセスも 1 回増える —— 直すべきは保管庫で、ページではない。
+ * v9 までは同じ事故が `TIMEOUT` や `INTERNAL` を名乗っていたので、ここで再試行されていた。
  */
 const MAX_ATTEMPTS = 2;
 const RETRYABLE: ReadonlySet<string> = new Set<ErrorType>([

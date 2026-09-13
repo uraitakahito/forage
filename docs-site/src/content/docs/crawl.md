@@ -88,7 +88,9 @@ Two consequences:
 - **Retries live here now.** BrowserHive no longer retries on the server side —
   a retry there would bypass the gap measured here. A capture that fails with a
   transient error (`connection`, `timeout`, `internal`) is tried once more,
-  after the same gap as any other request to that host.
+  after the same gap as any other request to that host. A failure to store the
+  artifacts (`artifact_sink`) is not — what is broken is the store, and capturing
+  the page again would only write to the same store.
 
 ## Settings come from variables, not arguments
 
